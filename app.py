@@ -57,4 +57,4 @@ if job_desc_file and resume_file:
             questions = generate_questions(job_description, resume_text)
             st.subheader("Generated Interview Questions:")
             for question in questions:
-                st.write(question). "This code works fine", beautify the buttons and display of the questions in a nice graphical structure"
+                st.write(question)
