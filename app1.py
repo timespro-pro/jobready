@@ -9,14 +9,14 @@ from botocore.exceptions import NoCredentialsError, ClientError
 AWS_ACCESS_KEY = st.secrets["aws"]["AWS_ACCESS_KEY"]
 AWS_SECRET_KEY = st.secrets["aws"]["AWS_SECRET_KEY"]
 REGION_NAME = st.secrets["aws"]["REGION_NAME"]
-S3_BUCKET_NAME = st.secrets["aws"]["S3_BUCKET_NAME"]
+#S3_BUCKET_NAME = st.secrets["aws"]["S3_BUCKET_NAME"]
 
 # Initialize AWS Clients
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 s3 = boto3.client("s3", region_name="us-east-1")
 
 # S3 Bucket Name (Change this to your S3 bucket)
-S3_BUCKET_NAME = "your-s3-bucket-name"
+S3_BUCKET_NAME ="tensorflow_titans_job"
 
 # Function to extract text from PDF
 def extract_text_from_pdf(uploaded_file):
