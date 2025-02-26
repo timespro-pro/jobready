@@ -1,6 +1,7 @@
 import streamlit as st
 import PyPDF2
 import openai
+from shadcn_ui import Card, CardContent, Button
 
 openai.api_key = st.secrets["openai"]["api_key"]
 
@@ -41,33 +42,23 @@ def generate_questions(job_description, resume_text):
     return questions.split("\n")  # Splitting numbered questions into a list
 
 # Streamlit UI
-st.title("📄 AI Interview Question Generator")
+st.title("AI Interview Question Generator")
 
-st.write("Upload a **job description** and a **candidate's resume** to generate customized interview questions.")
+st.write("Upload a job description and a candidate's resume to generate interview questions.")
 
-job_desc_file = st.file_uploader("📂 Upload Job Description (PDF)", type=["pdf"])
-resume_file = st.file_uploader("📂 Upload Resume (PDF)", type=["pdf"])
+job_desc_file = st.file_uploader("Upload Job Description (PDF)", type=["pdf"], key="job_desc")
+resume_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"], key="resume")
 
 if job_desc_file and resume_file:
     job_description = extract_text_from_pdf(job_desc_file)
     resume_text = extract_text_from_pdf(resume_file)
     
-    if st.button("✨ Generate Interview Questions", use_container_width=True):
-        with st.spinner("🛠️ Generating questions..."):
+    if st.button("Generate Interview Questions", use_container_width=True):
+        with st.spinner("Generating questions..."):
             questions = generate_questions(job_description, resume_text)
-            st.subheader("📌 Generated Interview Questions:")
+            st.subheader("Generated Interview Questions:")
             
-            # Display questions in a styled format
             for idx, question in enumerate(questions, 1):
-                with st.container():
-                    st.markdown(f"""
-                    <div style="
-                        padding: 10px; 
-                        margin: 10px 0; 
-                        border-radius: 10px; 
-                        background-color: #f9f9f9;
-                        box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
-                    ">
-                        <b>{idx}. {question}</b>
-                    </div>
-                    """, unsafe_allow_html=True)
+                with Card():
+                    with CardContent():
+                        st.markdown(f"**{idx}. {question}**")
