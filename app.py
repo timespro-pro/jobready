@@ -1,7 +1,6 @@
 import streamlit as st
 import PyPDF2
 import openai
-from shadcn_ui import Card, CardContent, Button
 
 openai.api_key = st.secrets["openai"]["api_key"]
 
@@ -46,19 +45,16 @@ st.title("AI Interview Question Generator")
 
 st.write("Upload a job description and a candidate's resume to generate interview questions.")
 
-job_desc_file = st.file_uploader("Upload Job Description (PDF)", type=["pdf"], key="job_desc")
-resume_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"], key="resume")
+job_desc_file = st.file_uploader("Upload Job Description (PDF)", type=["pdf"])
+resume_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
 
 if job_desc_file and resume_file:
     job_description = extract_text_from_pdf(job_desc_file)
     resume_text = extract_text_from_pdf(resume_file)
     
-    if st.button("Generate Interview Questions", use_container_width=True):
+    if st.button("Generate Interview Questions"):
         with st.spinner("Generating questions..."):
             questions = generate_questions(job_description, resume_text)
             st.subheader("Generated Interview Questions:")
-            
-            for idx, question in enumerate(questions, 1):
-                with Card():
-                    with CardContent():
-                        st.markdown(f"**{idx}. {question}**")
+            for question in questions:
+                st.write(question). "This code works fine", beautify the buttons and display of the questions in a nice graphical structure"
