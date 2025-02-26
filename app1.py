@@ -5,6 +5,12 @@ import PyPDF2
 from io import BytesIO
 from botocore.exceptions import NoCredentialsError, ClientError
 
+# Load AWS Credentials from Streamlit Secrets
+AWS_ACCESS_KEY = st.secrets["aws"]["AWS_ACCESS_KEY"]
+AWS_SECRET_KEY = st.secrets["aws"]["AWS_SECRET_KEY"]
+REGION_NAME = st.secrets["aws"]["REGION_NAME"]
+S3_BUCKET_NAME = st.secrets["aws"]["S3_BUCKET_NAME"]
+
 # Initialize AWS Clients
 bedrock = boto3.client("bedrock-runtime", region_name="us-east-1")
 s3 = boto3.client("s3", region_name="us-east-1")
