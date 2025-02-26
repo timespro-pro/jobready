@@ -1,34 +1,34 @@
-import openai
+import streamlit as st
 import PyPDF2
-import pandas as pd
+import openai
 
-# Set OpenAI API key
-openai.api_key = "your_openai_api_key"
+openai.api_key = st.secrets["openai"]["api_key"]
 
-def extract_text_from_pdf(pdf_path):
-    """Extracts text from a PDF file."""
-    with open(pdf_path, "rb") as file:
-        reader = PyPDF2.PdfReader(file)
-        text = ""
-        for page in reader.pages:
-            text += page.extract_text() + "\n"
+def extract_text_from_pdf(pdf_file):
+    """Extracts text from an uploaded PDF file."""
+    reader = PyPDF2.PdfReader(pdf_file)
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() + "\n"
     return text.strip()
 
-def generate_questions(job_description):
-    """Generates 10 interview questions based on the job description using GPT-4."""
-    
+def generate_questions(job_description, resume_text):
+    """Generates 10 interview questions using GPT-4 based on the job description and resume."""
     prompt = f"""
-    You are a hiring manager creating interview questions for a job. 
-    Based on the following job description, generate 10 relevant and thoughtful interview questions.
+    You are a hiring manager creating interview questions for a job candidate.
+    Based on the following job description and candidate's resume, generate 10 relevant and thoughtful interview questions.
     
     ### Job Description:
     {job_description}
     
+    ### Candidate's Resume:
+    {resume_text}
+    
     The questions should assess technical skills, job-specific knowledge, and behavioral traits.
-
+    
     Respond ONLY with a numbered list of 10 questions.
     """
-
+    
     response = openai.chat.completions.create(
         model="gpt-4",
         messages=[
@@ -36,19 +36,38 @@ def generate_questions(job_description):
             {"role": "user", "content": prompt}
         ]
     )
-
+    
     questions = response.choices[0].message.content.strip()
     return questions.split("\n")  # Splitting numbered questions into a list
 
-# Load job description from PDF
-pdf_path = "job_description.pdf"  # Replace with your actual file
-job_description = extract_text_from_pdf(pdf_path)
+# Streamlit UI
+st.title("📄 AI Interview Question Generator")
 
-# Generate 10 questions
-questions = generate_questions(job_description)
+st.write("Upload a **job description** and a **candidate's resume** to generate customized interview questions.")
 
-# Save questions to an Excel file
-df = pd.DataFrame({"Interview Questions": questions})
-df.to_excel("generated_questions.xlsx", index=False)
+job_desc_file = st.file_uploader("📂 Upload Job Description (PDF)", type=["pdf"])
+resume_file = st.file_uploader("📂 Upload Resume (PDF)", type=["pdf"])
 
-print("Questions generated and saved to 'generated_questions.xlsx'.")
+if job_desc_file and resume_file:
+    job_description = extract_text_from_pdf(job_desc_file)
+    resume_text = extract_text_from_pdf(resume_file)
+    
+    if st.button("✨ Generate Interview Questions", use_container_width=True):
+        with st.spinner("🛠️ Generating questions..."):
+            questions = generate_questions(job_description, resume_text)
+            st.subheader("📌 Generated Interview Questions:")
+            
+            # Display questions in a styled format
+            for idx, question in enumerate(questions, 1):
+                with st.container():
+                    st.markdown(f"""
+                    <div style="
+                        padding: 10px; 
+                        margin: 10px 0; 
+                        border-radius: 10px; 
+                        background-color: #f9f9f9;
+                        box-shadow: 2px 2px 10px rgba(0, 0, 0, 0.1);
+                    ">
+                        <b>{idx}. {question}</b>
+                    </div>
+                    """, unsafe_allow_html=True)
