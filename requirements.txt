@@ -2,3 +2,4 @@ openai
 pandas
 PyPDF2
 openpyxl
+boto3
