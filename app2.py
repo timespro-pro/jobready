@@ -100,19 +100,33 @@ if uploaded_file and job_id:
 
     if st.button("Save question and generate video link"):
         st.success("Video link will be sent shortly")
-        
-        # Custom CSS to set the background image
+    
+        # Custom CSS to display the image in a controlled size
         st.markdown(
             """
             <style>
-            .stApp {
-                background: url("https://i.ibb.co/G3T9xPKY/download.jpg") no-repeat center center fixed;
-                background-size: cover;
+            .interview-image-container {
+                display: flex;
+                justify-content: center;
+                align-items: center;
+                height: auto;
+                margin-top: 20px;
+            }
+            .interview-image {
+                max-width: 80%;
+                height: auto;
+                border-radius: 10px;
+                box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.1);
             }
             </style>
+            
+            <div class="interview-image-container">
+                <img src="https://i.ibb.co/LdYPdkYB/pexels-mjlo-2872418.jpg" class="interview-image">
+            </div>
             """,
             unsafe_allow_html=True
         )
+
 
 else:
     st.warning("Please enter a Job ID and upload a PDF file.")
