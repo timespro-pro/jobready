@@ -98,7 +98,7 @@ if uploaded_file and job_id:
     #    st.success("Video link will be sent shortly")
     #    st.image("https://i.ibb.co/G3T9xPKY/download.jpg")
 
-    if st.button("Save question and generate video link"):
+    if st.button("Save questions and generate video link"):
         st.success("Interview Video link will be sent shortly")
     
         # Custom CSS to display the image in a controlled size
