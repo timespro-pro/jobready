@@ -6,7 +6,7 @@ import boto3
 # Load AWS credentials from Streamlit secrets
 AWS_ACCESS_KEY = st.secrets["aws"]["AWS_ACCESS_KEY"]
 AWS_SECRET_KEY = st.secrets["aws"]["AWS_SECRET_KEY"]
-S3_BUCKET_NAME = "YOUR_S3_BUCKET_NAME"  # Replace with your S3 bucket name
+S3_BUCKET_NAME = 'tensorflow-titans-bucket'  # Replace with your S3 bucket name
 LAMBDA_URL = "YOUR_LAMBDA_FUNCTION_URL"  # Replace with your AWS Lambda endpoint
 
 # Initialize S3 Client
