@@ -20,13 +20,13 @@ st.write("Upload a job description and enter additional details to generate inte
 job_desc_file = st.file_uploader("Upload Job Description (PDF)", type=["pdf"])
 
 # Additional input field
-candidate_details = st.text_area("Enter job id from the portal ")
+candidate_details = st.text_area("Enter job id from the HR portal ")
 
-# Button to trigger Lambda function
-if job_desc_file:
-    job_description = extract_text_from_pdf(job_desc_file)
-    
-    if st.button("Generate Interview Questions"):
+# Submit button to trigger Lambda function
+if st.button("Submit"):
+    if job_desc_file:
+        job_description = extract_text_from_pdf(job_desc_file)
+        
         with st.spinner("Fetching questions from AWS Lambda..."):
             lambda_url = "YOUR_LAMBDA_FUNCTION_URL"  # Replace with your AWS Lambda endpoint
             payload = {"job_description": job_description, "candidate_details": candidate_details}
@@ -39,4 +39,5 @@ if job_desc_file:
                     st.write(question)
             else:
                 st.error("Error fetching questions from AWS Lambda.")
-
+    else:
+        st.error("Please upload a job description before submitting.")
