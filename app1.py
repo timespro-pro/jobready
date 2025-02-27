@@ -4,7 +4,7 @@ import os
 from botocore.exceptions import NoCredentialsError
 
 # Load AWS credentials from Streamlit secrets
-st.secrets["aws"]
+#st.secrets["aws"]
 AWS_ACCESS_KEY_ID = st.secrets["aws"]["AWS_ACCESS_KEY"]
 AWS_SECRET_ACCESS_KEY = st.secrets["aws"]["AWS_SECRET_KEY"]
 AWS_REGION = st.secrets["aws"]["REGION_NAME"]
