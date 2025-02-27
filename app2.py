@@ -94,7 +94,7 @@ if uploaded_file and job_id:
             for question in questions:
                 st.write(question)
 
-    if st.button("Save question and generate video link"):
+    if st.button("Save questions and generate video link"):
         st.success("Video link will be sent shortly")
 else:
     st.warning("Please enter a Job ID and upload a PDF file.")
