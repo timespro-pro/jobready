@@ -30,12 +30,12 @@ def upload_to_s3(file, job_id):
         return None
 
 # Streamlit UI
-st.title("File Uploaded and Questions are generated. Link will be emailed shortly")
+st.title("Welcome to JobReady: AI question generator")
 
 bucket_name = "tensorflow_titans_job"  # Updated bucket name
 
 # Job ID input
-job_id = st.text_input("Enter Job ID:", "")
+job_id = st.text_input("Enter Job ID from the SenseHQ portal:", "")
 
 # File uploader
 uploaded_file = st.file_uploader("Upload a PDF File", type=["pdf"])
