@@ -93,5 +93,8 @@ if uploaded_file and job_id:
             st.subheader("Generated Interview Questions:")
             for question in questions:
                 st.write(question)
+
+    if st.button("Save question and generate video link"):
+        st.success("Video link will be sent shortly")
 else:
     st.warning("Please enter a Job ID and upload a PDF file.")
