@@ -94,9 +94,25 @@ if uploaded_file and job_id:
             for question in questions:
                 st.write(question)
 
+    #if st.button("Save question and generate video link"):
+    #    st.success("Video link will be sent shortly")
+    #    st.image("https://i.ibb.co/G3T9xPKY/download.jpg")
+
     if st.button("Save question and generate video link"):
-        st.success("Video link will be sent shortly")
-        st.image("https://i.ibb.co/G3T9xPKY/download.jpg")
+    st.success("Video link will be sent shortly")
+    
+    # Custom CSS to set the background image
+    st.markdown(
+        """
+        <style>
+        .stApp {
+            background: url("https://i.ibb.co/VpmxjB7/interview.jpg") no-repeat center center fixed;
+            background-size: cover;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True
+    )
 
 else:
     st.warning("Please enter a Job ID and upload a PDF file.")
