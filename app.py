@@ -12,17 +12,17 @@ def extract_text_from_pdf(pdf_file):
         text += page.extract_text() + "\n"
     return text.strip()
 
-def generate_questions(job_description, resume_text):
-    """Generates 10 interview questions using GPT-4 based on the job description and resume."""
+def generate_questions(job_description, job_id):
+    """Generates 10 interview questions using GPT-4 based on the job description and job ID."""
     prompt = f"""
     You are a hiring manager creating interview questions for a job candidate.
-    Based on the following job description and candidate's resume, generate 10 relevant and thoughtful interview questions.
+    Based on the following job description and job ID, generate 10 relevant and thoughtful interview questions.
     
     ### Job Description:
     {job_description}
     
-    ### Candidate's Resume:
-    {resume_text}
+    ### Job ID:
+    {job_id}
     
     The questions should assess technical skills, job-specific knowledge, and behavioral traits.
     
@@ -43,18 +43,17 @@ def generate_questions(job_description, resume_text):
 # Streamlit UI
 st.title("AI Interview Question Generator")
 
-st.write("Upload a job description and a candidate's resume to generate interview questions.")
+st.write("Upload a job description and enter a Job ID to generate interview questions.")
 
 job_desc_file = st.file_uploader("Upload Job Description (PDF)", type=["pdf"])
-resume_file = st.file_uploader("Upload Resume (PDF)", type=["pdf"])
+job_id = st.text_input("Enter Job ID")
 
-if job_desc_file and resume_file:
+if job_desc_file and job_id:
     job_description = extract_text_from_pdf(job_desc_file)
-    resume_text = extract_text_from_pdf(resume_file)
     
     if st.button("Generate Interview Questions"):
         with st.spinner("Generating questions..."):
-            questions = generate_questions(job_description, resume_text)
+            questions = generate_questions(job_description, job_id)
             st.subheader("Generated Interview Questions:")
             for question in questions:
                 st.write(question)
