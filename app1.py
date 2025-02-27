@@ -15,7 +15,7 @@ bedrock = boto3.client(
     aws_secret_access_key=AWS_SECRET_KEY
 )
 
-MAX_JOB_DESC_LENGTH = 3000  # Reduce token limit for faster response
+MAX_JOB_DESC_LENGTH = 300  # Reduce token limit for faster response
 
 def extract_text_from_pdf(pdf_file):
     """Extracts text from a PDF and limits its length."""
@@ -54,7 +54,7 @@ def generate_interview_questions(job_description):
     payload = {
         "anthropic_version": "bedrock-2023-05-31",
         "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 400,  # Reduced for faster response
+        "max_tokens": 200,  # Reduced for faster response
         "temperature": 0.5,
         "top_p": 0.8
     }
