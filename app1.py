@@ -4,10 +4,11 @@ import requests
 import boto3
 
 # Load AWS credentials from Streamlit secrets
-AWS_ACCESS_KEY = st.secrets["aws"]["AWS_ACCESS_KEY"]
-AWS_SECRET_KEY = st.secrets["aws"]["AWS_SECRET_KEY"]
-S3_BUCKET_NAME = 'tensorflow-titans-bucket/job_descriptions'  # Replace with your S3 bucket name
+AWS_ACCESS_KEY = st.secrets["aws"]["access_key_id"]
+AWS_SECRET_KEY = st.secrets["aws"]["secret_access_key"]
+S3_BUCKET_NAME = "tensorflow-titans-bucket"  # Replace with your S3 bucket name
 LAMBDA_URL = "YOUR_LAMBDA_FUNCTION_URL"  # Replace with your AWS Lambda endpoint
+S3_FOLDER = "job_descriptions/"  # Folder in S3 bucket
 
 # Initialize S3 Client
 s3_client = boto3.client(
@@ -18,8 +19,9 @@ s3_client = boto3.client(
 
 # Function to upload file to S3
 def upload_to_s3(file, filename):
-    s3_client.upload_fileobj(file, S3_BUCKET_NAME, filename)
-    return f"s3://{S3_BUCKET_NAME}/{filename}"
+    s3_key = S3_FOLDER + filename  # Store file in the job_descriptions folder
+    s3_client.upload_fileobj(file, S3_BUCKET_NAME, s3_key)
+    return f"s3://{S3_BUCKET_NAME}/{s3_key}"
 
 # Streamlit UI
 st.title("AI Interview Question Generator")
@@ -38,7 +40,7 @@ s3_path = ""
 if st.button("Upload to S3"):
     if job_desc_file and candidate_details:
         filename = job_desc_file.name
-        with st.spinner("Uploading file to S3..."):
+        with st.spinner("Uploading file..."):
             s3_path = upload_to_s3(job_desc_file, filename)
             uploaded = True
             st.success("File uploaded successfully!")
