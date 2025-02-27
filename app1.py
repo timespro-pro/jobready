@@ -28,6 +28,13 @@ def upload_to_s3(file, filename):
     s3_client.upload_fileobj(file, S3_BUCKET_NAME, s3_key)
     return f"s3://{S3_BUCKET_NAME}/{s3_key}", s3_key
 
+MAX_JOB_DESC_LENGTH = 4000  # Adjust based on token limits
+
+def truncate_text(text, max_length=MAX_JOB_DESC_LENGTH):
+    """Truncate text to avoid exceeding the model input size."""
+    return text[:max_length] + "..." if len(text) > max_length else text
+
+
 # Function to retrieve job description from S3
 def get_job_description(s3_key):
     obj = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
@@ -38,6 +45,7 @@ def get_job_description(s3_key):
         return content.decode("utf-8")
     except UnicodeDecodeError:
         return content.decode("ISO-8859-1")  # Alternative encoding
+job_description = truncate_text(job_description)
 
 import boto3
 import json
