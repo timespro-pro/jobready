@@ -106,7 +106,7 @@ if uploaded_file and job_id:
             """
             <style>
             .stApp {
-                background: url("https://i.ibb.co/VpmxjB7/interview.jpg") no-repeat center center fixed;
+                background: url("https://i.ibb.co/G3T9xPKY/download.jpg") no-repeat center center fixed;
                 background-size: cover;
             }
             </style>
