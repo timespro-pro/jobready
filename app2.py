@@ -96,7 +96,7 @@ if uploaded_file and job_id:
 
     if st.button("Save question and generate video link"):
         st.success("Video link will be sent shortly")
-        st.image("https://ibb.co/VpmxjB7n")
+        st.image("https://i.ibb.co/G3T9xPKY/download.jpg")
 
 else:
     st.warning("Please enter a Job ID and upload a PDF file.")
