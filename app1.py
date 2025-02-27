@@ -39,8 +39,22 @@ def get_job_description(s3_key):
     except UnicodeDecodeError:
         return content.decode("ISO-8859-1")  # Alternative encoding
 
-# Function to generate interview questions using Claude 3 Sonnet
+import boto3
+import json
+
 def generate_interview_questions(job_description):
+    """
+    Sends a structured prompt to Claude 3 Sonnet on AWS Bedrock to generate interview questions.
+    """
+
+    # Reinitialize the AWS Bedrock client inside the function
+    bedrock = boto3.client(
+        service_name="bedrock-runtime",
+        region_name="us-east-1",  # Change to your AWS region
+        aws_access_key_id=st.secrets["aws"]["AWS_ACCESS_KEY"],
+        aws_secret_access_key=st.secrets["aws"]["AWS_SECRET_KEY"]
+    )
+
     prompt = f"""
     **Task:**
     You are an AI assistant skilled in analyzing job descriptions and resumes.
@@ -95,6 +109,7 @@ def generate_interview_questions(job_description):
 
     response_body = json.loads(response["body"].read().decode("utf-8"))
     return json.loads(response_body["content"][0]["text"])
+
 
 # Streamlit UI
 st.title("AI Interview Question Generator")
