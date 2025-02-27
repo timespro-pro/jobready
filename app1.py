@@ -25,6 +25,7 @@ def extract_text_from_pdf(pdf_file):
 
 def generate_interview_questions(job_description):
     """Generates interview questions using AWS Bedrock (Claude 3)."""
+    
     prompt = f"""
     You are an AI assistant skilled in analyzing job descriptions and resumes.
     - Extract the **Job Title** from the Job Description.
@@ -54,7 +55,7 @@ def generate_interview_questions(job_description):
         "anthropic_version": "bedrock-2023-05-31",
         "messages": [{"role": "user", "content": prompt}],
         "max_tokens": 400,  # Reduced for faster response
-        "temperature": 0.5,  # Slight randomness to reduce load
+        "temperature": 0.5,
         "top_p": 0.8
     }
 
@@ -66,24 +67,25 @@ def generate_interview_questions(job_description):
 
         raw_response = response["body"].read().decode("utf-8")
 
-        # Debug: Print raw response
-        print("RAW RESPONSE:", raw_response)
+        # 🔍 Print and check the raw response
+        print("🔍 RAW RESPONSE FROM BEDROCK:", raw_response)
 
-        response_body = json.loads(raw_response)
+        response_body = json.loads(raw_response)  # Ensure it's valid JSON
 
-        # Ensure "content" exists before accessing
-        if "content" in response_body and response_body["content"]:
-            ai_text = response_body["content"][0]["text"]
-            return json.loads(ai_text)  # Convert AI response text into JSON
+        # Check for "content" key and return data
+        if "content" in response_body:
+            ai_text = response_body["content"][0]["text"]  # Get AI output
+            print("🔍 AI OUTPUT:", ai_text)  # Print AI response
+            return json.loads(ai_text)  # Convert AI output to dictionary
         else:
-            st.error("Bedrock returned an empty response.")
+            st.error("AWS Bedrock returned an unexpected response format.")
             return {}
 
     except json.JSONDecodeError:
-        st.error("Invalid JSON response from AWS Bedrock.")
+        st.error("❌ Invalid JSON response from AWS Bedrock. Check console for raw response.")
         return {}
     except Exception as e:
-        st.error(f"Error: {str(e)}")
+        st.error(f"⚠️ Error: {str(e)}")
         return {}
 
 # Streamlit UI
