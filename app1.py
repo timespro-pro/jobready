@@ -41,7 +41,7 @@ job_id = st.text_input("Enter Job ID from the SenseHQ portal:", "")
 uploaded_file = st.file_uploader("Upload the job description PDF file", type=["pdf"])
 
 if uploaded_file and job_id:
-    if st.button("Upload to S3"):
+    if st.button("Upload file to JobReady system"):
         file_url = upload_to_s3(uploaded_file, job_id)
         if file_url:
             st.success(f"File successfully uploaded! [View File]({file_url})")
