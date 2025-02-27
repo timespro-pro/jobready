@@ -20,7 +20,7 @@ st.write("Upload a job description and enter additional details to generate inte
 job_desc_file = st.file_uploader("Upload Job Description (PDF)", type=["pdf"])
 
 # Additional input field
-candidate_details = st.text_area("Enter Candidate Details (Skills, Experience, etc.)")
+candidate_details = st.text_area("Enter job id from the portal ")
 
 # Button to trigger Lambda function
 if job_desc_file:
