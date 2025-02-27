@@ -1,15 +1,25 @@
 import streamlit as st
 import PyPDF2
 import requests
+import boto3
 
-# Function to extract text from an uploaded PDF file
-def extract_text_from_pdf(pdf_file):
-    """Extracts text from an uploaded PDF file."""
-    reader = PyPDF2.PdfReader(pdf_file)
-    text = ""
-    for page in reader.pages:
-        text += page.extract_text() + "\n"
-    return text.strip()
+# Load AWS credentials from Streamlit secrets
+AWS_ACCESS_KEY = st.secrets["aws"]["access_key_id"]
+AWS_SECRET_KEY = st.secrets["aws"]["secret_access_key"]
+S3_BUCKET_NAME = "YOUR_S3_BUCKET_NAME"  # Replace with your S3 bucket name
+LAMBDA_URL = "YOUR_LAMBDA_FUNCTION_URL"  # Replace with your AWS Lambda endpoint
+
+# Initialize S3 Client
+s3_client = boto3.client(
+    "s3",
+    aws_access_key_id=AWS_ACCESS_KEY,
+    aws_secret_access_key=AWS_SECRET_KEY
+)
+
+# Function to upload file to S3
+def upload_to_s3(file, filename):
+    s3_client.upload_fileobj(file, S3_BUCKET_NAME, filename)
+    return f"s3://{S3_BUCKET_NAME}/{filename}"
 
 # Streamlit UI
 st.title("AI Interview Question Generator")
@@ -22,15 +32,25 @@ job_desc_file = st.file_uploader("Upload Job Description (PDF)", type=["pdf"])
 # Additional input field
 candidate_details = st.text_area("Enter job id from the HR portal ")
 
-# Submit button to trigger Lambda function
-if st.button("Submit"):
-    if job_desc_file:
-        job_description = extract_text_from_pdf(job_desc_file)
-        
-        with st.spinner("Fetching questions from AWS Lambda..."):
-            lambda_url = "YOUR_LAMBDA_FUNCTION_URL"  # Replace with your AWS Lambda endpoint
-            payload = {"job_description": job_description, "candidate_details": candidate_details}
-            response = requests.post(lambda_url, json=payload)
+uploaded = False
+s3_path = ""
+
+if st.button("Upload to S3"):
+    if job_desc_file and candidate_details:
+        filename = job_desc_file.name
+        with st.spinner("Uploading file to S3..."):
+            s3_path = upload_to_s3(job_desc_file, filename)
+            uploaded = True
+            st.success("File uploaded successfully!")
+    else:
+        st.error("Please upload a job description and enter a job ID before submitting.")
+
+# Show Generate Questions button only after upload
+if uploaded or s3_path:
+    if st.button("Generate Interview Questions"):
+        with st.spinner("Triggering AWS Lambda function..."):
+            payload = {"s3_path": s3_path, "candidate_details": candidate_details}
+            response = requests.post(LAMBDA_URL, json=payload)
             
             if response.status_code == 200:
                 questions = response.json().get("questions", [])
@@ -39,5 +59,3 @@ if st.button("Submit"):
                     st.write(question)
             else:
                 st.error("Error fetching questions from AWS Lambda.")
-    else:
-        st.error("Please upload a job description before submitting.")
