@@ -6,81 +6,56 @@ import json
 # Load AWS credentials from Streamlit secrets
 AWS_ACCESS_KEY = st.secrets["aws"]["AWS_ACCESS_KEY"]
 AWS_SECRET_KEY = st.secrets["aws"]["AWS_SECRET_KEY"]
-S3_BUCKET_NAME = "tensorflow-titans-bucket"  # Replace with your S3 bucket name
-S3_FOLDER = "job_descriptions/"  # Folder in S3 bucket
-
-# Initialize S3 Client
-s3_client = boto3.client(
-    "s3",
-    aws_access_key_id=AWS_ACCESS_KEY,
-    aws_secret_access_key=AWS_SECRET_KEY
-)
 
 # Initialize AWS Bedrock Client
 bedrock = boto3.client(
     service_name="bedrock-runtime",
-    region_name="us-east-1",  # Change to your AWS region
+    region_name="us-east-1",
+    aws_access_key_id=AWS_ACCESS_KEY,
+    aws_secret_access_key=AWS_SECRET_KEY
 )
-
-# Function to upload file to S3
-def upload_to_s3(file, filename):
-    s3_key = S3_FOLDER + filename  # Store file in the job_descriptions folder
-    s3_client.upload_fileobj(file, S3_BUCKET_NAME, s3_key)
-    return f"s3://{S3_BUCKET_NAME}/{s3_key}", s3_key
 
 MAX_JOB_DESC_LENGTH = 4000  # Adjust based on token limits
 
 
-import boto3
-import json
+def extract_text_from_pdf(pdf_file):
+    """Extract text from uploaded PDF."""
+    pdf_reader = PyPDF2.PdfReader(pdf_file)
+    text = ""
+    for page in pdf_reader.pages:
+        text += page.extract_text() + "\n"
+    return text[:MAX_JOB_DESC_LENGTH]  # Trim to token limit
+
 
 def generate_interview_questions(job_description):
     """
     Sends a structured prompt to Claude 3 Sonnet on AWS Bedrock to generate interview questions.
     """
-
-    # Reinitialize the AWS Bedrock client inside the function
-    bedrock = boto3.client(
-        service_name="bedrock-runtime",
-        region_name="us-east-1",  # Change to your AWS region
-        aws_access_key_id=st.secrets["aws"]["AWS_ACCESS_KEY"],
-        aws_secret_access_key=st.secrets["aws"]["AWS_SECRET_KEY"]
-    )
-
     prompt = f"""
     **Task:**
     You are an AI assistant skilled in analyzing job descriptions and resumes.
     - Extract the **Job Title** from the Job Description.
     - Extract the **total months of experience** from the resume.
     - Analyze the **Job Description (JD)** and extract **the top 5 most critical skills**.
-    - Compare these skills with the **resume** to check matching/missing skills and give a **score from 1 to 10** for eligibility.
-    - Generate **3 technical or conceptual questions** based on those extracted JD skills and candidate's experience and their answers.
+    - Generate **3 technical or conceptual questions** based on those extracted JD skills.
       - For beginners: Simple definition-based questions.
       - For senior/mid-level roles: More advanced scenario-based questions.
-    - Generate **2 project-based questions** from the resume related to past projects or experience that test the candidate’s real-world application of these skills along with their answers.
+    - Generate **2 project-based questions** related to past projects or experience that test real-world application of these skills.
 
     **Job Description:**
     {job_description}
-
-    **Resume:**
 
     **Output Format:**
     ```
     {{
       "JobTitle": "[Job Title extracted from the job description]",
       "Experience": "[Experience in Months extracted from resume]",
-      "Score": "[Matching score between the resume and the job description]",
       "Questions": {{
         "Q1": "[Technical question 1]",
-        "A1": "[Answer for Q1]",
         "Q2": "[Technical question 2]",
-        "A2": "[Answer for Q2]",
         "Q3": "[Conceptual question 3]",
-        "A3": "[Answer for Q3]",
-        "Q4": "[Technical question 4]",
-        "A4": "[Answer for Q4]",
-        "Q5": "[Scenario-based question 5]",
-        "A5": "[Answer for Q5]"
+        "Q4": "[Project-based question 4]",
+        "Q5": "[Project-based question 5]"
       }}
     }}
     ```
@@ -106,46 +81,34 @@ def generate_interview_questions(job_description):
 # Streamlit UI
 st.title("AI Interview Question Generator")
 
-st.write("Upload a job description and enter additional details to generate interview questions.")
+st.write("Upload a job description **OR** enter it manually.")
 
-# Job Description Upload Button
-job_desc_file = st.file_uploader("Upload Job Description (PDF)", type=["pdf"])
+# Job Description Upload (Optional)
+job_desc_file = st.file_uploader("Upload Job Description (PDF) (Optional)", type=["pdf"])
 
-# Additional input field
-candidate_details = st.text_area("Enter job ID from the HR portal")
+# Manual Job Description Entry
+job_description_text = st.text_area("Or, enter job description manually", "")
 
-if "uploaded" not in st.session_state:
-    st.session_state.uploaded = False
-    st.session_state.s3_path = ""
-    st.session_state.s3_key = ""
+# Handle PDF Upload
+if job_desc_file is not None:
+    with st.spinner("Extracting text from PDF..."):
+        extracted_text = extract_text_from_pdf(job_desc_file)
+        job_description_text = extracted_text  # Auto-fill the text area
 
-if st.button("Upload to S3"):
-    if job_desc_file and candidate_details:
-        filename = job_desc_file.name
-        with st.spinner("Uploading file..."):
-            s3_path, s3_key = upload_to_s3(job_desc_file, filename)
-            st.session_state.s3_path = s3_path
-            st.session_state.s3_key = s3_key
-            st.session_state.uploaded = True
-            st.success("File uploaded successfully!")
+# Button to generate questions
+if st.button("Generate Interview Questions"):
+    if not job_description_text.strip():
+        st.error("Please provide a job description either by uploading a PDF or entering text manually.")
     else:
-        st.error("Please upload a job description and enter a job ID before submitting.")
-
-if st.session_state.uploaded:
-    if st.button("Generate Interview Questions"):
-        with st.spinner("Fetching job description and generating questions..."):
-            job_description_text = get_job_description(st.session_state.s3_key)
+        with st.spinner("Generating interview questions..."):
             questions_data = generate_interview_questions(job_description_text)
             
             st.subheader(f"Job Title: {questions_data.get('JobTitle', 'N/A')}")
             st.write(f"Experience Required: {questions_data.get('Experience', 'N/A')} months")
-            st.write(f"Eligibility Score: {questions_data.get('Score', 'N/A')}/10")
             
             st.subheader("Generated Interview Questions:")
             for i in range(1, 6):
                 question = questions_data.get("Questions", {}).get(f"Q{i}", "")
-                answer = questions_data.get("Questions", {}).get(f"A{i}", "")
                 if question:
                     st.write(f"**Q{i}:** {question}")
-                    st.write(f"**A{i}:** {answer}")
                     st.markdown("---")
