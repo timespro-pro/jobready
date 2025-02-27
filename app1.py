@@ -10,7 +10,7 @@ AWS_REGION = st.secrets["aws"]["REGION_NAME"]
 
 def upload_to_s3(file, job_id):
     """Uploads a file to S3 with a structured filename including the job ID."""
-    bucket_name = "tensorflow_titans_job"
+    bucket_name = "tensorflow-titans-bucket"
     s3 = boto3.client(
         's3',
         aws_access_key_id=AWS_ACCESS_KEY_ID,
