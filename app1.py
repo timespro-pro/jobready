@@ -38,7 +38,7 @@ bucket_name = "tensorflow_titans_job"  # Updated bucket name
 job_id = st.text_input("Enter Job ID from the SenseHQ portal:", "")
 
 # File uploader
-uploaded_file = st.file_uploader("Upload a PDF File", type=["pdf"])
+uploaded_file = st.file_uploader("Upload the job description PDF file", type=["pdf"])
 
 if uploaded_file and job_id:
     if st.button("Upload to S3"):
