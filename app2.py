@@ -61,7 +61,7 @@ def generate_questions(job_description, job_id):
     response = openai.chat.completions.create(
         model="gpt-4",
         messages=[
-            {"role": "system", "content": "You are an expert recruiter generating job interview questions."},
+            {"role": "system", "content": "You are an expert recruiter and content generator generating job interview questions."},
             {"role": "user", "content": prompt}
         ]
     )
@@ -70,7 +70,7 @@ def generate_questions(job_description, job_id):
     return questions.split("\n")
 
 # Streamlit UI
-st.title("Welcome to JobReady: AI question generator")
+st.title("JobReady HR portal ")
 
 bucket_name = "tensorflow_titans_job"  # Updated bucket name
 
