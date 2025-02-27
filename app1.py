@@ -35,24 +35,25 @@ job_desc_file = st.file_uploader("Upload Job Description (PDF)", type=["pdf"])
 # Additional input field
 candidate_details = st.text_area("Enter job ID from the HR portal")
 
-uploaded = False
-s3_path = ""
+if "uploaded" not in st.session_state:
+    st.session_state.uploaded = False
+    st.session_state.s3_path = ""
 
 if st.button("Upload to S3"):
     if job_desc_file and candidate_details:
         filename = job_desc_file.name
         with st.spinner("Uploading file..."):
-            s3_path = upload_to_s3(job_desc_file, filename)
-            uploaded = True
+            st.session_state.s3_path = upload_to_s3(job_desc_file, filename)
+            st.session_state.uploaded = True
             st.success("File uploaded successfully!")
     else:
         st.error("Please upload a job description and enter a job ID before submitting.")
 
 # Show Generate Questions button only after upload
-if uploaded or s3_path:
+if st.session_state.uploaded:
     if st.button("Generate Interview Questions"):
         with st.spinner("Triggering AWS Lambda function..."):
-            payload = {"s3_path": s3_path, "candidate_details": candidate_details}
+            payload = {"s3_path": st.session_state.s3_path, "candidate_details": candidate_details}
             response = requests.post(LAMBDA_URL, json=payload)
             
             if response.status_code == 200:
