@@ -9,7 +9,7 @@ AWS_SECRET_ACCESS_KEY = st.secrets["aws"]["AWS_SECRET_KEY"]
 AWS_REGION = st.secrets["aws"]["REGION_NAME"]
 
 def upload_to_s3(file, job_id):
-    """Uploads a file to S3 with a structured filename including the job ID."""
+    """Welcome to JobReady AI question generator"""
     bucket_name = "tensorflow-titans-bucket"
     s3 = boto3.client(
         's3',
@@ -30,7 +30,7 @@ def upload_to_s3(file, job_id):
         return None
 
 # Streamlit UI
-st.title("PDF Upload to S3 with Job ID")
+st.title("File Uploaded and Questions are generated. Link will be emailed shortly")
 
 bucket_name = "tensorflow_titans_job"  # Updated bucket name
 
