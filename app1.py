@@ -31,7 +31,13 @@ def upload_to_s3(file, filename):
 # Function to retrieve job description from S3
 def get_job_description(s3_key):
     obj = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
-    return obj["Body"].read().decode("utf-8")
+    content = obj["Body"].read()
+
+    # Try decoding with UTF-8, fallback to other encodings
+    try:
+        return content.decode("utf-8")
+    except UnicodeDecodeError:
+        return content.decode("ISO-8859-1")  # Alternative encoding
 
 # Function to generate interview questions using Claude 3 Sonnet
 def generate_interview_questions(job_description):
