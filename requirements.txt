@@ -1,5 +1,7 @@
+streamlit
+langchain
 openai
-pandas
+requests
+beautifulsoup4
 PyPDF2
-openpyxl
-boto3
+python-dotenv
