@@ -1,6 +1,7 @@
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
-from langchain.llms import OpenAI
+from langchain_community.llms import OpenAI
+
 
 def get_combined_response(pdf_text, url_texts, question):
     content = "\n\n--- PDF Content ---\n" + pdf_text
