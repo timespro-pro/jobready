@@ -7,7 +7,9 @@ def load_pdf(pdf_path):
     with open(pdf_path, "rb") as f:
         reader = PyPDF2.PdfReader(f)
         for page in reader.pages:
-            text += page.extract_text() + "\n"
+            page_text = page.extract_text()
+            if page_text:
+                text += page_text + "\n"
     return text
 
 def load_url_content(urls):
@@ -20,4 +22,6 @@ def load_url_content(urls):
                 texts.append(soup.get_text(separator=" ", strip=True))
             except Exception as e:
                 texts.append(f"Error loading {url}: {str(e)}")
+        else:
+            texts.append("")  # Keep indexing consistent
     return texts
