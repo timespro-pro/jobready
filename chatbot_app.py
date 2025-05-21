@@ -1,5 +1,6 @@
 import streamlit as st
-from langchain.chat_models import ChatOpenAI
+#from langchain.chat_models import ChatOpenAI
+from langchain_openai import ChatOpenAI
 from utils.loaders import load_pdf, load_url_content
 from utils.llm_chain import get_combined_response
 import tempfile
