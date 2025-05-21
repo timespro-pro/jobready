@@ -2,6 +2,10 @@ import streamlit as st
 from utils.loaders import load_pdf, load_url_content
 from utils.llm_chain import get_combined_response
 import tempfile
+import streamlit as st
+
+openai_key = st.secrets["OPENAI_API_KEY"]
+llm = ChatOpenAI(temperature=0.3, model_name="gpt-3.5-turbo", openai_api_key=openai_key)
 
 st.set_page_config(page_title="PDF & Web Chatbot", layout="centered")
 st.title("📚 Web + PDF Chatbot")
