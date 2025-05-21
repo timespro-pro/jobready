@@ -6,3 +6,4 @@ beautifulsoup4
 PyPDF2
 python-dotenv
 langchain-community
+openai
