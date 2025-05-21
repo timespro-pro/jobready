@@ -1,6 +1,7 @@
 from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
-from langchain_community.llms import OpenAI
+from langchain_community.chat_models import ChatOpenAI  # ✅ Correct import for chat models
+import os
 
 def get_combined_response(pdf_text, url_texts, question):
     content = ""
@@ -16,7 +17,10 @@ def get_combined_response(pdf_text, url_texts, question):
         "Given the following documents:\n{docs}\n\nAnswer the question: {question}"
     )
 
-    llm = OpenAI(temperature=0.3, model_name="gpt-3.5-turbo")
+    # ✅ Correct LLM usage with env variable fallback
+    openai_key = os.getenv("OPENAI_API_KEY", "your-fallback-key-if-applicable")
+    llm = ChatOpenAI(temperature=0.3, model_name="gpt-3.5-turbo", openai_api_key=openai_key)
+
     chain = LLMChain(llm=llm, prompt=prompt)
 
     response = chain.run({"docs": content, "question": question})
