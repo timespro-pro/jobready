@@ -2,7 +2,9 @@ import streamlit as st
 from utils.loaders import load_pdf, load_url_content
 from utils.llm_chain import get_combined_response
 import tempfile
-import streamlit as st
+#import streamlit as st
+
+from langchain.chat_models import ChatOpenAI
 
 openai_key = st.secrets["OPENAI_API_KEY"]
 llm = ChatOpenAI(temperature=0.3, model_name="gpt-3.5-turbo", openai_api_key=openai_key)
