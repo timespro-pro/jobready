@@ -1,10 +1,8 @@
 import streamlit as st
+from langchain.chat_models import ChatOpenAI
 from utils.loaders import load_pdf, load_url_content
 from utils.llm_chain import get_combined_response
 import tempfile
-#import streamlit as st
-
-from langchain.chat_models import ChatOpenAI
 
 openai_key = st.secrets["OPENAI_API_KEY"]
 llm = ChatOpenAI(temperature=0.3, model_name="gpt-3.5-turbo", openai_api_key=openai_key)
@@ -16,7 +14,7 @@ st.title("📚 Web + PDF Chatbot")
 pdf_file = st.file_uploader("Upload a PDF file", type="pdf")
 url_1 = st.text_input("Input URL 1")
 url_2 = st.text_input("Input URL 2")
-question = st.text_area("Enter your question", height=150, placeholder="Tone:\nNo long paragraphs.\nUse confident, sales-ready language.\nAvoid adjectives like “renowned” or “popular” — focus on real, strategic learner benefits.")
+question = st.text_area("Enter your question", height=150)
 
 # Process
 if st.button("View Output"):
@@ -26,7 +24,6 @@ if st.button("View Output"):
         st.warning("Please enter a question.")
     else:
         with st.spinner("Processing..."):
-            # Handle PDF
             pdf_text = ""
             if pdf_file:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
@@ -34,11 +31,7 @@ if st.button("View Output"):
                     pdf_path = tmp_pdf.name
                 pdf_text = load_pdf(pdf_path)
 
-            # Handle URLs
             url_texts = load_url_content([url_1, url_2])
-
-            # Generate response
             response = get_combined_response(pdf_text, url_texts, question)
-
             st.success("Here's the result:")
             st.write(response)
