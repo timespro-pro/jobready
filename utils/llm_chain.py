@@ -3,7 +3,7 @@ from langchain.prompts import PromptTemplate
 from langchain_community.chat_models import ChatOpenAI
 import streamlit as st
 
-def get_combined_response(pdf_text, url_texts, question):
+def get_combined_response(pdf_text, url_texts):
     content = ""
 
     if pdf_text.strip():
@@ -13,15 +13,15 @@ def get_combined_response(pdf_text, url_texts, question):
         if text.strip():
             content += f"\n\n--- URL {i+1} Content ---\n" + text
 
-    # Use structured prompt for sales-enablement brief
+    # Use structured sales-enablement brief prompt
     prompt_template = """
 You are a strategic program analyst helping counselors pitch a TimesPro program to learners. Based on the following documents, create a sales-enablement brief using the exact structure below.
 
 Documents:
 {docs}
 
-Question/Task:
-{question}
+Task:
+Create a sales-enablement brief comparing the TimesPro program with the competitor’s program.
 
 Output Format (follow strictly):
 
@@ -54,5 +54,5 @@ No fluff. Be concise, confident, and benefit-driven. No vague adjectives. Focus 
 
     chain = LLMChain(llm=llm, prompt=prompt)
 
-    response = chain.run({"docs": content, "question": question})
+    response = chain.run({"docs": content})
     return response
