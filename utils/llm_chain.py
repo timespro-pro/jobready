@@ -3,7 +3,7 @@ from langchain.prompts import PromptTemplate
 from langchain_community.chat_models import ChatOpenAI
 import streamlit as st
 
-def get_combined_response(pdf_text, url_texts):
+def get_combined_response(pdf_text, url_texts, model_choice="gpt-3.5-turbo", followup_question=None):
     content = ""
 
     if pdf_text.strip():
@@ -13,8 +13,8 @@ def get_combined_response(pdf_text, url_texts):
         if text.strip():
             content += f"\n\n--- URL {i+1} Content ---\n" + text
 
-    # Use structured sales-enablement brief prompt
-    prompt_template = """
+    # Sales prompt
+    base_prompt = """
 You are a strategic program analyst helping counselors pitch a TimesPro program to learners. Based on the following documents, create a sales-enablement brief using the exact structure below.
 
 Documents:
@@ -47,10 +47,14 @@ Tone:
 No fluff. Be concise, confident, and benefit-driven. No vague adjectives. Focus on strategic, real-world outcomes.
 """
 
-    prompt = PromptTemplate.from_template(prompt_template)
+    # Add follow-up question to the prompt if provided
+    if followup_question:
+        base_prompt += f"\n\nUser Follow-Up Question:\n{followup_question}\nPlease answer this based on the comparison."
+
+    prompt = PromptTemplate.from_template(base_prompt)
 
     openai_key = st.secrets["OPENAI_API_KEY"]
-    llm = ChatOpenAI(temperature=0.3, model_name="gpt-3.5-turbo", openai_api_key=openai_key)
+    llm = ChatOpenAI(temperature=0.3, model_name=model_choice, openai_api_key=openai_key)
 
     chain = LLMChain(llm=llm, prompt=prompt)
 
