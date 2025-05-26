@@ -8,3 +8,4 @@ PyPDF2
 python-dotenv
 langchain-community
 openai
+google-cloud-storage
