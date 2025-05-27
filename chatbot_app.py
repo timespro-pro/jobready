@@ -73,10 +73,13 @@ memory = ConversationBufferMemory(
 )
 # ===============================
 
-# ====== SESSION STATE FOR COMPARISON CONTEXT ======
+# ====== SESSION STATE ======
 if "comparison_output" not in st.session_state:
     st.session_state.comparison_output = ""
-# ===================================================
+
+if "comparison_injected" not in st.session_state:
+    st.session_state.comparison_injected = False
+# ===========================
 
 # ====== MAIN COMPARISON ======
 if st.button("Compare"):
@@ -94,44 +97,32 @@ if st.button("Compare"):
             url_texts = load_url_content([url_1, url_2])
             response = get_combined_response(pdf_text, url_texts, model_choice=model_choice)
             st.session_state.comparison_output = response
+            st.session_state.comparison_injected = False  # reset so it can be re-injected
             st.success("Here's the comparison:")
             st.write(response)
-
 # ====================================================
 
-# ====== QUESTION-ANSWERING SECTION ======
+# ====== QA SECTION ======
 st.subheader("💬 Ask a follow-up question about the TimesPro program")
 
 user_question = st.text_input("Enter your question here")
 
 if user_question and retriever:
     with st.spinner("Answering your question using the knowledge base..."):
-        # Embed comparison into retriever by making a fake doc
-        from langchain.schema import Document
+        # Inject the comparison output into memory once
+        if st.session_state.comparison_output and not st.session_state.comparison_injected:
+            memory.chat_memory.add_user_message("Here is a comparison of TimesPro and competitor programs:")
+            memory.chat_memory.add_ai_message(st.session_state.comparison_output)
+            st.session_state.comparison_injected = True
 
-        comparison_doc = Document(
-            page_content=st.session_state.comparison_output,
-            metadata={"source": "comparison"}
-        )
-
-        # Add to retriever context dynamically
-        custom_docs = [comparison_doc] + retriever.get_relevant_documents(user_question)
-
+        # Build ConversationalRetrievalChain
         qa_chain = ConversationalRetrievalChain.from_llm(
             llm=ChatOpenAI(model_name=model_choice, openai_api_key=openai_key),
-            retriever=None,  # we'll pass documents directly
+            retriever=retriever,
             memory=memory,
             return_source_documents=True
         )
 
-        result = qa_chain.combine_docs_chain.run(
-            input=user_question,
-            documents=custom_docs,
-            chat_history=memory.chat_memory.messages
-        )
-
-        memory.chat_memory.add_user_message(user_question)
-        memory.chat_memory.add_ai_message(result)
-
-        st.write(f"💬 Answer: {result}")
-# =========================================
+        result = qa_chain.invoke({"question": user_question})
+        st.write(f"💬 Answer: {result['answer']}")
+# =========================
