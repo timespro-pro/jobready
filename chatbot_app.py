@@ -1,6 +1,7 @@
 import streamlit as st
 from langchain_openai import ChatOpenAI
-from langchain.chains import RetrievalQA
+from langchain.chains import ConversationalRetrievalChain
+from langchain.memory import ConversationBufferMemory
 from utils.loaders import load_pdf, load_url_content
 from utils.llm_chain import get_combined_response
 from load_vectorstore_from_gcp import load_vectorstore
@@ -53,22 +54,29 @@ def sanitize_url(url: str) -> str:
 folder_name = f"timespro_com_executive_education_{sanitize_url(selected_program)}"
 # =============================================
 
-# ====== LOAD VECTORSTORE AND RAG CHAIN ======
-if folder_name:
-    if "rag_chain" not in st.session_state:
-        with st.spinner("Loading TimesPro program details..."):
-            try:
-                vectorstore = load_vectorstore(folder_name=folder_name, openai_api_key=openai_key, gcp_config=gcp_config)
-                retriever = vectorstore.as_retriever()
-                st.session_state.rag_chain = RetrievalQA.from_chain_type(
-                    llm=ChatOpenAI(model_name=model_choice, openai_api_key=openai_key),
-                    retriever=retriever,
-                    chain_type="stuff"
-                )
-            except Exception as e:
-                st.error(f"Vectorstore loading failed: {e}")
-                st.session_state.rag_chain = None
-# =============================================
+# ====== LOAD VECTORSTORE ======
+with st.spinner("Loading TimesPro program details..."):
+    try:
+        vectorstore = load_vectorstore(folder_name=folder_name, openai_api_key=openai_key, gcp_config=gcp_config)
+        retriever = vectorstore.as_retriever()
+        st.success("Vectorstore loaded successfully.")
+    except Exception as e:
+        st.error(f"Vectorstore loading failed: {e}")
+        retriever = None
+# ==============================
+
+# ====== INITIALIZE MEMORY ======
+memory = ConversationBufferMemory(
+    memory_key="chat_history",
+    return_messages=True,
+    k=7  # retain last 7 interactions
+)
+# ===============================
+
+# ====== SESSION STATE FOR COMPARISON CONTEXT ======
+if "comparison_output" not in st.session_state:
+    st.session_state.comparison_output = ""
+# ===================================================
 
 # ====== MAIN COMPARISON ======
 if st.button("Compare"):
@@ -85,17 +93,45 @@ if st.button("Compare"):
 
             url_texts = load_url_content([url_1, url_2])
             response = get_combined_response(pdf_text, url_texts, model_choice=model_choice)
+            st.session_state.comparison_output = response
             st.success("Here's the comparison:")
             st.write(response)
 
-st.subheader("💬 Ask a follow-up question about the TimesPro program")
-user_question = st.text_input("Enter your question here", key="user_q")
+# ====================================================
 
-if user_question and st.session_state.get("rag_chain"):
-    with st.spinner("Answering your question using the TimesPro knowledge base..."):
-        try:
-            answer = st.session_state.rag_chain.run(user_question)
-            st.write(f"💬 Answer: {answer}")
-        except Exception as e:
-            st.error(f"Error while answering: {e}")
-# ===============================
+# ====== QUESTION-ANSWERING SECTION ======
+st.subheader("💬 Ask a follow-up question about the TimesPro program")
+
+user_question = st.text_input("Enter your question here")
+
+if user_question and retriever:
+    with st.spinner("Answering your question using the knowledge base..."):
+        # Embed comparison into retriever by making a fake doc
+        from langchain.schema import Document
+
+        comparison_doc = Document(
+            page_content=st.session_state.comparison_output,
+            metadata={"source": "comparison"}
+        )
+
+        # Add to retriever context dynamically
+        custom_docs = [comparison_doc] + retriever.get_relevant_documents(user_question)
+
+        qa_chain = ConversationalRetrievalChain.from_llm(
+            llm=ChatOpenAI(model_name=model_choice, openai_api_key=openai_key),
+            retriever=None,  # we'll pass documents directly
+            memory=memory,
+            return_source_documents=True
+        )
+
+        result = qa_chain.combine_docs_chain.run(
+            input=user_question,
+            documents=custom_docs,
+            chat_history=memory.chat_memory.messages
+        )
+
+        memory.chat_memory.add_user_message(user_question)
+        memory.chat_memory.add_ai_message(result)
+
+        st.write(f"💬 Answer: {result}")
+# =========================================
