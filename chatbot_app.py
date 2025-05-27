@@ -9,6 +9,11 @@ import os
 
 # ====== SECRETS ======
 openai_key = st.secrets["OPENAI_API_KEY"]
+gcp_config = {
+    "bucket_name": "test_bucket_brian",
+    "prefix": "vectorstores",
+    "credentials": st.secrets["GCP_SERVICE_ACCOUNT"]
+}
 # =====================
 
 # ====== PAGE CONFIG ======
@@ -27,7 +32,6 @@ model_choice = st.selectbox(
 # ====== INPUTS ======
 pdf_file = st.file_uploader("Upload a PDF file", type="pdf")
 
-# Program URL options
 program_options = [
     "https://timespro.com/executive-education/iim-calcutta-senior-management-programme",
     "https://timespro.com/executive-education/iim-kashipur-senior-management-programme",
@@ -42,47 +46,27 @@ url_1 = selected_program
 url_2 = st.text_input("Input URL 2 (Optional)")
 # =====================
 
-# ====== MAP URL TO LOCAL VECTORSTORE PATH ======
-program_to_local_vectorstore = {
-    "https://timespro.com/executive-education/iim-calcutta-senior-management-programme":
-        "jobready/vectorstores/timespro_com_executive_education_iim_calcutta_senior_management_programme/",
+# ====== MAP TO GCP-FRIENDLY FOLDER NAME ======
+def sanitize_url(url: str) -> str:
+    return url.strip("/").split("/")[-1].replace("-", "_")
 
-    "https://timespro.com/executive-education/iim-kashipur-senior-management-programme":
-        "jobready/vectorstores/timespro_com_executive_education_iim_kashipur_senior_management_programme/",
+folder_name = f"timespro_com_executive_education_{sanitize_url(selected_program)}"
+# =============================================
 
-    "https://timespro.com/executive-education/iim-raipur-senior-management-programme":
-        "jobready/vectorstores/timespro_com_executive_education_iim_raipur_senior_management_programme/",
-
-    "https://timespro.com/executive-education/iim-indore-senior-management-programme":
-        "jobready/vectorstores/timespro_com_executive_education_iim_indore_senior_management_programme/",
-
-    "https://timespro.com/executive-education/iim-kozhikode-strategic-management-programme-for-cxos":
-        "jobready/vectorstores/timespro_com_executive_education_iim_kozhikode_strategic_management_programme_for_cxos/",
-
-    "https://timespro.com/executive-education/iim-calcutta-lead-an-advanced-management-programme":
-        "jobready/vectorstores/timespro_com_executive_education_iim_calcutta_lead_an_advanced_management_programme/",
-}
-# ===============================================
-
-# ====== LOAD VECTORSTORE BASED ON SELECTED PROGRAM ======
+# ====== LOAD VECTORSTORE ======
 with st.spinner("Loading TimesPro program details..."):
-    selected_vector_path = program_to_local_vectorstore.get(selected_program)
-
-    st.write(f"Checking vectorstore folder at: {selected_vector_path}")  # Debug print
-
-    if selected_vector_path and os.path.exists(selected_vector_path):
-        vectorstore = load_vectorstore(selected_vector_path, openai_key)
+    try:
+        vectorstore = load_vectorstore(folder_name=folder_name, openai_api_key=openai_key, gcp_config=gcp_config)
         retriever = vectorstore.as_retriever()
-
         rag_chain = RetrievalQA.from_chain_type(
             llm=ChatOpenAI(model_name=model_choice, openai_api_key=openai_key),
             retriever=retriever,
             chain_type="stuff"
         )
-    else:
-        st.error(f"No vectorstore available or folder not found:\n\n{selected_vector_path}")
+    except Exception as e:
+        st.error(f"Vectorstore loading failed: {e}")
         rag_chain = None
-# ==========================================================
+# ==============================
 
 # ====== MAIN COMPARISON ======
 if st.button("Compare"):
@@ -98,13 +82,10 @@ if st.button("Compare"):
                 pdf_text = load_pdf(pdf_path)
 
             url_texts = load_url_content([url_1, url_2])
-
-            # Generate comparison from LLM
             response = get_combined_response(pdf_text, url_texts, model_choice=model_choice)
             st.success("Here's the comparison:")
             st.write(response)
 
-            # Follow-up QA using vectorstore
             st.subheader("💬 Ask a follow-up question about the TimesPro program")
             user_question = st.text_input("Enter your question here")
 
