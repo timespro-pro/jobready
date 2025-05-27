@@ -17,7 +17,7 @@ gcp_config = {
 # =====================
 
 # ====== PAGE CONFIG ======
-st.set_page_config(page_title="PDF & Web Chatbot", layout="centered")
+st.set_page_config(page_title="AI Sales Assistant", layout="centered")
 st.title("📚 Web + PDF Chatbot")
 # =========================
 
