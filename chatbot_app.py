@@ -44,8 +44,23 @@ url_2 = st.text_input("Input URL 2 (Optional)")
 
 # ====== MAP URL TO LOCAL VECTORSTORE PATH ======
 program_to_local_vectorstore = {
-    url: f"vectorstores/{url.replace('https://', '').replace('/', '_')}"
-    for url in program_options
+    "https://timespro.com/executive-education/iim-calcutta-senior-management-programme":
+        "vectorstores/timespro_com_executive_education_iim_calcutta_senior_management_programme",
+
+    "https://timespro.com/executive-education/iim-kashipur-senior-management-programme":
+        "vectorstores/timespro_com_executive_education_iim_kashipur_senior_management_programme",
+
+    "https://timespro.com/executive-education/iim-raipur-senior-management-programme":
+        "vectorstores/timespro_com_executive_education_iim_raipur_senior_management_programme",
+
+    "https://timespro.com/executive-education/iim-indore-senior-management-programme":
+        "vectorstores/timespro_com_executive_education_iim_indore_senior_management_programme",
+
+    "https://timespro.com/executive-education/iim-kozhikode-strategic-management-programme-for-cxos":
+        "vectorstores/timespro_com_executive_education_iim_kozhikode_strategic_management_programme_for_cxos",
+
+    "https://timespro.com/executive-education/iim-calcutta-lead-an-advanced-management-programme":
+        "vectorstores/timespro_com_executive_education_iim_calcutta_lead_an_advanced_management_programme",
 }
 # ===============================================
 
