@@ -65,10 +65,10 @@ with st.spinner("Loading TimesPro program details..."):
         retriever = None
 # ==============================
 
-# ====== INITIALIZE MEMORY ======
+# ====== INITIALIZE MEMORY (FIXED) ======
 memory = ConversationBufferMemory(
     memory_key="chat_history",
-    return_messages=True,
+    return_messages=False,  # ✅ FIXED: changed to False to avoid ValueError
     k=7  # retain last 7 interactions
 )
 # ===============================
