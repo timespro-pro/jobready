@@ -53,20 +53,22 @@ def sanitize_url(url: str) -> str:
 folder_name = f"timespro_com_executive_education_{sanitize_url(selected_program)}"
 # =============================================
 
-# ====== LOAD VECTORSTORE ======
-with st.spinner("Loading TimesPro program details..."):
-    try:
-        vectorstore = load_vectorstore(folder_name=folder_name, openai_api_key=openai_key, gcp_config=gcp_config)
-        retriever = vectorstore.as_retriever()
-        rag_chain = RetrievalQA.from_chain_type(
-            llm=ChatOpenAI(model_name=model_choice, openai_api_key=openai_key),
-            retriever=retriever,
-            chain_type="stuff"
-        )
-    except Exception as e:
-        st.error(f"Vectorstore loading failed: {e}")
-        rag_chain = None
-# ==============================
+# ====== LOAD VECTORSTORE AND RAG CHAIN ======
+if folder_name:
+    if "rag_chain" not in st.session_state:
+        with st.spinner("Loading TimesPro program details..."):
+            try:
+                vectorstore = load_vectorstore(folder_name=folder_name, openai_api_key=openai_key, gcp_config=gcp_config)
+                retriever = vectorstore.as_retriever()
+                st.session_state.rag_chain = RetrievalQA.from_chain_type(
+                    llm=ChatOpenAI(model_name=model_choice, openai_api_key=openai_key),
+                    retriever=retriever,
+                    chain_type="stuff"
+                )
+            except Exception as e:
+                st.error(f"Vectorstore loading failed: {e}")
+                st.session_state.rag_chain = None
+# =============================================
 
 # ====== MAIN COMPARISON ======
 if st.button("Compare"):
@@ -86,11 +88,14 @@ if st.button("Compare"):
             st.success("Here's the comparison:")
             st.write(response)
 
-            st.subheader("💬 Ask a follow-up question about the TimesPro program")
-            user_question = st.text_input("Enter your question here")
+st.subheader("💬 Ask a follow-up question about the TimesPro program")
+user_question = st.text_input("Enter your question here", key="user_q")
 
-            if user_question and rag_chain:
-                with st.spinner("Answering your question using the TimesPro knowledge base..."):
-                    answer = rag_chain.run(user_question)
-                    st.write(f"💬 Answer: {answer}")
+if user_question and st.session_state.get("rag_chain"):
+    with st.spinner("Answering your question using the TimesPro knowledge base..."):
+        try:
+            answer = st.session_state.rag_chain.run(user_question)
+            st.write(f"💬 Answer: {answer}")
+        except Exception as e:
+            st.error(f"Error while answering: {e}")
 # ===============================
