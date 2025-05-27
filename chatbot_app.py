@@ -3,12 +3,12 @@ from langchain_openai import ChatOpenAI
 from langchain.chains import RetrievalQA
 from utils.loaders import load_pdf, load_url_content
 from utils.llm_chain import get_combined_response
-from load_vectorstore_from_gcp import download_vectorstore_from_gcp, load_vectorstore
+from load_vectorstore_from_gcp import load_vectorstore
 import tempfile
+import os
 
 # ====== SECRETS ======
 openai_key = st.secrets["OPENAI_API_KEY"]
-gcp_credentials = st.secrets["gcp_service_account"]
 # =====================
 
 # ====== PAGE CONFIG ======
@@ -29,32 +29,32 @@ pdf_file = st.file_uploader("Upload a PDF file", type="pdf")
 
 # Program URL options
 program_options = [
-    "https://timespro.com/executive-education/iim-kozhikode-professional-certificate-programme-in-advanced-product-management",
-    "https://example.com/program2"
+    "https://timespro.com/executive-education/iim-calcutta-senior-management-programme",
+    "https://timespro.com/executive-education/iim-kashipur-senior-management-programme",
+    "https://timespro.com/executive-education/iim-raipur-senior-management-programme",
+    "https://timespro.com/executive-education/iim-indore-senior-management-programme",
+    "https://timespro.com/executive-education/iim-kozhikode-strategic-management-programme-for-cxos",
+    "https://timespro.com/executive-education/iim-calcutta-lead-an-advanced-management-programme",
 ]
+
 selected_program = st.selectbox("Select TimesPro Program URL", program_options)
 url_1 = selected_program
 url_2 = st.text_input("Input URL 2 (Optional)")
 # =====================
 
-# ====== MAP URL TO GCP PREFIX ======
-program_to_prefix = {
-    "https://timespro.com/executive-education/iim-kozhikode-professional-certificate-programme-in-advanced-product-management": "timespro_vectors/kozhikode_program",
-    "https://example.com/program2": "timespro_vectors/program2"
+# ====== MAP URL TO LOCAL VECTORSTORE PATH ======
+program_to_local_vectorstore = {
+    url: f"vectorstores/{url.replace('https://', '').replace('/', '_')}"
+    for url in program_options
 }
-# ===================================
+# ===============================================
 
-# ====== LOAD VECTORSTORE FROM GCP ======
+# ====== LOAD VECTORSTORE BASED ON SELECTED PROGRAM ======
 with st.spinner("Loading TimesPro program details..."):
-    selected_prefix = program_to_prefix.get(selected_program)
+    selected_vector_path = program_to_local_vectorstore.get(selected_program)
 
-    if selected_prefix:
-        local_path = download_vectorstore_from_gcp(
-            bucket_name="test_bucket_brian",
-            prefix=selected_prefix,
-            gcp_credentials=gcp_credentials
-        )
-        vectorstore = load_vectorstore(local_path, openai_key)
+    if selected_vector_path and os.path.exists(selected_vector_path):
+        vectorstore = load_vectorstore(selected_vector_path, openai_key)
         retriever = vectorstore.as_retriever()
 
         rag_chain = RetrievalQA.from_chain_type(
@@ -63,9 +63,9 @@ with st.spinner("Loading TimesPro program details..."):
             chain_type="stuff"
         )
     else:
-        st.error("No vectorstore available for the selected program.")
+        st.error("No vectorstore available or folder not found for the selected program.")
         rag_chain = None
-# =======================================
+# ==========================================================
 
 # ====== MAIN COMPARISON ======
 if st.button("Compare"):
