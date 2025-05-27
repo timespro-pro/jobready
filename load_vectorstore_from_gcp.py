@@ -18,23 +18,25 @@ def download_vectorstore_from_gcp(bucket_name: str, prefix: str, gcp_credentials
     Returns:
         str: Path to the local directory containing the downloaded vectorstore files.
     """
-    # Ensure GCP credentials are structured correctly
     credentials = service_account.Credentials.from_service_account_info(gcp_credentials)
     client = storage.Client(credentials=credentials, project=gcp_credentials.get("project_id"))
     bucket = client.bucket(bucket_name)
 
-    # Temporary local directory
+    # Create a temporary local directory
     local_dir = tempfile.mkdtemp()
 
+    # List and download all blobs under the given prefix
     blobs = client.list_blobs(bucket_name, prefix=prefix)
     for blob in blobs:
-        if blob.name.endswith("/"):  # skip folders
+        if blob.name.endswith("/"):  # Skip folders
             continue
 
+        # Determine relative path to save locally
         relative_path = os.path.relpath(blob.name, prefix)
         local_path = os.path.join(local_dir, relative_path)
         os.makedirs(os.path.dirname(local_path), exist_ok=True)
 
+        # Download blob
         blob.download_to_filename(local_path)
 
     return local_dir
@@ -52,5 +54,34 @@ def load_vectorstore(local_path: str, openai_api_key: str) -> FAISS:
         FAISS: A LangChain FAISS vectorstore object.
     """
     embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
-    vectorstore = FAISS.load_local(folder_path=local_path, embeddings=embeddings, allow_dangerous_deserialization=True)
+    vectorstore = FAISS.load_local(
+        folder_path=local_path,
+        embeddings=embeddings,
+        allow_dangerous_deserialization=True
+    )
+    return vectorstore
+
+
+def load_local_vectorstore_from_repo(relative_path: str, openai_api_key: str) -> FAISS:
+    """
+    Loads a FAISS vectorstore stored in the same GitHub repository as the code.
+
+    Args:
+        relative_path (str): Relative path from the current file to the vectorstore folder.
+        openai_api_key (str): Your OpenAI API key.
+
+    Returns:
+        FAISS: A LangChain FAISS vectorstore object.
+    """
+    abs_path = os.path.join(os.path.dirname(__file__), relative_path)
+
+    if not os.path.exists(abs_path):
+        raise FileNotFoundError(f"Vectorstore path does not exist: {abs_path}")
+
+    embeddings = OpenAIEmbeddings(openai_api_key=openai_api_key)
+    vectorstore = FAISS.load_local(
+        folder_path=abs_path,
+        embeddings=embeddings,
+        allow_dangerous_deserialization=True
+    )
     return vectorstore
