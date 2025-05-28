@@ -5,17 +5,23 @@ from langchain.memory import ConversationBufferMemory
 from utils.loaders import load_pdf, load_url_content
 from utils.llm_chain import get_combined_response
 from load_vectorstore_from_gcp import load_vectorstore
+from google.oauth2 import service_account
 import tempfile
 import os
 
-# ====== SECRETS ======
+# ====== SECRETS & GCP CREDENTIALS FIX ======
 openai_key = st.secrets["OPENAI_API_KEY"]
+
+# Properly convert secrets to service account credentials
+gcp_credentials_dict = dict(st.secrets["GCP_SERVICE_ACCOUNT"])
+gcp_credentials = service_account.Credentials.from_service_account_info(gcp_credentials_dict)
+
 gcp_config = {
     "bucket_name": "test_bucket_brian",
     "prefix": "vectorstores",
-    "credentials": st.secrets["GCP_SERVICE_ACCOUNT"]
+    "credentials": gcp_credentials
 }
-# =====================
+# ===========================================
 
 # ====== PAGE CONFIG ======
 st.set_page_config(page_title="AI Sales Assistant", layout="centered")
@@ -65,13 +71,13 @@ with st.spinner("Loading TimesPro program details..."):
         retriever = None
 # ==============================
 
-# ====== INITIALIZE MEMORY (FIXED) ======
+# ====== INITIALIZE MEMORY ======
 memory = ConversationBufferMemory(
     memory_key="chat_history",
-    return_messages=True,  # ✅ fix for chat history error
+    return_messages=True,  # ✅ fix for chat history format
     k=7
 )
-# =======================================
+# ==============================
 
 # ====== SESSION STATE ======
 if "comparison_output" not in st.session_state:
@@ -123,6 +129,10 @@ if user_question and retriever:
             return_source_documents=True,
             output_key="answer"  # ✅ fix for multiple output keys
         )
+
+        # Ensure proper chat history format (safety)
+        if not isinstance(memory.chat_memory.messages, list):
+            memory.chat_memory.messages = []
 
         result = qa_chain.invoke({"question": user_question})
         st.write(f"💬 Answer: {result['answer']}")
