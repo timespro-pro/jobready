@@ -134,6 +134,6 @@ if user_question and retriever:
         if not isinstance(memory.chat_memory.messages, list):
             memory.chat_memory.messages = []
 
-        result = qa_chain.invoke({"question": user_question})
+        result = qa_chain.invoke({"question": user_question, "chat_history": [] })
         st.write(f"💬 Answer: {result['answer']}")
 # ===========================
