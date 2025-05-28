@@ -68,8 +68,8 @@ with st.spinner("Loading TimesPro program details..."):
 # ====== INITIALIZE MEMORY (FIXED) ======
 memory = ConversationBufferMemory(
     memory_key="chat_history",
-    return_messages=False,
-    k=7  # Keep last 7 interactions
+    return_messages=True,  # ✅ fix for chat history error
+    k=7
 )
 # =======================================
 
@@ -115,13 +115,15 @@ if user_question and retriever:
             memory.chat_memory.add_ai_message(st.session_state.comparison_output)
             st.session_state.comparison_injected = True
 
-        # Build ConversationalRetrievalChain (NO manual chat_history needed!)
+        # Build ConversationalRetrievalChain
         qa_chain = ConversationalRetrievalChain.from_llm(
             llm=ChatOpenAI(model_name=model_choice, openai_api_key=openai_key),
             retriever=retriever,
             memory=memory,
-            return_source_documents=True
+            return_source_documents=True,
+            output_key="answer"  # ✅ fix for multiple output keys
         )
 
-        result = qa_chain.invoke({"question": user_question})  # ✅ only pass question
+        result = qa_chain.invoke({"question": user_question})
         st.write(f"💬 Answer: {result['answer']}")
+# ===========================
