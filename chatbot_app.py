@@ -68,10 +68,10 @@ with st.spinner("Loading TimesPro program details..."):
 # ====== INITIALIZE MEMORY (FIXED) ======
 memory = ConversationBufferMemory(
     memory_key="chat_history",
-    return_messages=False,  # ✅ FIXED: changed to False to avoid ValueError
-    k=7  # retain last 7 interactions
+    return_messages=False,
+    k=7  # Keep last 7 interactions
 )
-# ===============================
+# =======================================
 
 # ====== SESSION STATE ======
 if "comparison_output" not in st.session_state:
@@ -97,7 +97,7 @@ if st.button("Compare"):
             url_texts = load_url_content([url_1, url_2])
             response = get_combined_response(pdf_text, url_texts, model_choice=model_choice)
             st.session_state.comparison_output = response
-            st.session_state.comparison_injected = False  # reset so it can be re-injected
+            st.session_state.comparison_injected = False
             st.success("Here's the comparison:")
             st.write(response)
 # ====================================================
@@ -123,6 +123,11 @@ if user_question and retriever:
             return_source_documents=True
         )
 
-        result = qa_chain.invoke({"question": user_question})
+        # ✅ FIX: explicitly pass chat_history from memory.buffer
+        result = qa_chain.invoke({
+            "question": user_question,
+            "chat_history": memory.buffer
+        })
+
         st.write(f"💬 Answer: {result['answer']}")
 # =========================
