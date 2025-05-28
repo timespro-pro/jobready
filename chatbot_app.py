@@ -115,7 +115,7 @@ if user_question and retriever:
             memory.chat_memory.add_ai_message(st.session_state.comparison_output)
             st.session_state.comparison_injected = True
 
-        # Build ConversationalRetrievalChain
+        # Build ConversationalRetrievalChain (NO manual chat_history needed!)
         qa_chain = ConversationalRetrievalChain.from_llm(
             llm=ChatOpenAI(model_name=model_choice, openai_api_key=openai_key),
             retriever=retriever,
@@ -123,11 +123,5 @@ if user_question and retriever:
             return_source_documents=True
         )
 
-        # ✅ FIX: explicitly pass chat_history from memory.buffer
-        result = qa_chain.invoke({
-            "question": user_question,
-            "chat_history": memory.buffer
-        })
-
+        result = qa_chain.invoke({"question": user_question})  # ✅ only pass question
         st.write(f"💬 Answer: {result['answer']}")
-# =========================
