@@ -1,8 +1,7 @@
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import OpenAIEmbeddings
-from google.oauth2 import service_account
 import gcsfs
-import pickle
+import os
 
 def load_vectorstore_from_gcp(bucket_name: str, path: str, creds_dict: dict):
     """
@@ -16,32 +15,26 @@ def load_vectorstore_from_gcp(bucket_name: str, path: str, creds_dict: dict):
     Returns:
         FAISS: Loaded vectorstore object.
     """
-    # Use the credentials dictionary directly with gcsfs
+    # Use gcsfs with passed credentials
     fs = gcsfs.GCSFileSystem(token=creds_dict)
 
     index_path = f"{bucket_name}/{path}/index.faiss"
     store_path = f"{bucket_name}/{path}/index.pkl"
 
-    with fs.open(index_path, "rb") as f:
-        index_data = f.read()
+    # Save GCS files to temp folder
+    local_folder = "/tmp/vectorstore"
+    os.makedirs(local_folder, exist_ok=True)
 
-    with fs.open(store_path, "rb") as f:
-        store_data = f.read()
+    with fs.open(index_path, "rb") as f_in, open(f"{local_folder}/index.faiss", "wb") as f_out:
+        f_out.write(f_in.read())
 
-    # Save to temp files for FAISS to load
-    with open("/tmp/index.faiss", "wb") as f:
-        f.write(index_data)
-    with open("/tmp/index.pkl", "wb") as f:
-        f.write(store_data)
+    with fs.open(store_path, "rb") as f_in, open(f"{local_folder}/index.pkl", "wb") as f_out:
+        f_out.write(f_in.read())
 
-    # Load from local temp files
-    with open("/tmp/index.pkl", "rb") as f:
-        store = pickle.load(f)
-    
+    # Load vectorstore from local files using LangChain’s FAISS loader
     vectorstore = FAISS.load_local(
-        folder_path="/tmp",
-        index_name="index",
+        folder_path=local_folder,
         embeddings=OpenAIEmbeddings(),
-        index=store
+        allow_dangerous_deserialization=True  # 👈 KEY FIX HERE
     )
     return vectorstore
