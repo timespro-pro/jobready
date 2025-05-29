@@ -9,10 +9,9 @@ from google.oauth2 import service_account
 import tempfile
 import os
 
-# ====== SECRETS & GCP CREDENTIALS FIX ======
+# ====== SECRETS & GCP CREDENTIALS ======
 openai_key = st.secrets["OPENAI_API_KEY"]
 
-# Properly convert secrets to service account credentials
 gcp_credentials_dict = dict(st.secrets["GCP_SERVICE_ACCOUNT"])
 gcp_credentials = service_account.Credentials.from_service_account_info(gcp_credentials_dict)
 
@@ -21,12 +20,10 @@ gcp_config = {
     "prefix": "vectorstores",
     "credentials": gcp_credentials
 }
-# ===========================================
+# ======================================
 
-# ====== PAGE CONFIG ======
 st.set_page_config(page_title="AI Sales Assistant", layout="centered")
 st.title("📚 AI Sales Assistant")
-# =========================
 
 # ====== MODEL CHOICE ======
 model_choice = st.selectbox(
@@ -34,7 +31,6 @@ model_choice = st.selectbox(
     ["gpt-3.5-turbo", "gpt-4", "gpt-4-1106-preview", "gpt-4o"],
     index=0
 )
-# ==========================
 
 # ====== INPUTS ======
 pdf_file = st.file_uploader("Upload a PDF file", type="pdf")
@@ -51,14 +47,12 @@ program_options = [
 selected_program = st.selectbox("Select TimesPro Program URL", program_options)
 url_1 = selected_program
 url_2 = st.text_input("Input URL 2 (Optional)")
-# =====================
 
-# ====== MAP TO GCP-FRIENDLY FOLDER NAME ======
+# Sanitize URL
 def sanitize_url(url: str) -> str:
     return url.strip("/").split("/")[-1].replace("-", "_")
 
 folder_name = f"timespro_com_executive_education_{sanitize_url(selected_program)}"
-# =============================================
 
 # ====== LOAD VECTORSTORE ======
 with st.spinner("Loading TimesPro program details..."):
@@ -69,25 +63,23 @@ with st.spinner("Loading TimesPro program details..."):
     except Exception as e:
         st.error(f"Vectorstore loading failed: {e}")
         retriever = None
-# ==============================
 
-# ====== INITIALIZE MEMORY ======
-memory = ConversationBufferMemory(
-    memory_key="chat_history",
-    return_messages=True,  # ✅ fix for chat history format
-    k=7
-)
-# ==============================
+# ====== CONVERSATION MEMORY ======
+if "memory" not in st.session_state:
+    st.session_state.memory = ConversationBufferMemory(
+        memory_key="chat_history",
+        return_messages=True,
+        k=7
+    )
 
-# ====== SESSION STATE ======
+# ====== SESSION STATE INIT ======
 if "comparison_output" not in st.session_state:
     st.session_state.comparison_output = ""
 
 if "comparison_injected" not in st.session_state:
     st.session_state.comparison_injected = False
-# ===========================
 
-# ====== MAIN COMPARISON ======
+# ====== MAIN COMPARISON BUTTON ======
 if st.button("Compare"):
     if not (pdf_file or url_1 or url_2):
         st.warning("Please upload a PDF or enter at least one URL.")
@@ -106,34 +98,28 @@ if st.button("Compare"):
             st.session_state.comparison_injected = False
             st.success("Here's the comparison:")
             st.write(response)
-# ====================================================
 
-# ====== QA SECTION ======
+# ====== QA CHATBOT SECTION ======
 st.subheader("💬 Ask a follow-up question about the TimesPro program")
-
 user_question = st.text_input("Enter your question here")
 
 if user_question and retriever:
     with st.spinner("Answering your question using the knowledge base..."):
-        # Inject the comparison output into memory once
+
+        # Inject comparison output to memory once
         if st.session_state.comparison_output and not st.session_state.comparison_injected:
-            memory.chat_memory.add_user_message("Here is a comparison of TimesPro and competitor programs:")
-            memory.chat_memory.add_ai_message(st.session_state.comparison_output)
+            st.session_state.memory.chat_memory.add_user_message(
+                "Here is a comparison of TimesPro and competitor programs:")
+            st.session_state.memory.chat_memory.add_ai_message(st.session_state.comparison_output)
             st.session_state.comparison_injected = True
 
         # Build ConversationalRetrievalChain
         qa_chain = ConversationalRetrievalChain.from_llm(
             llm=ChatOpenAI(model_name=model_choice, openai_api_key=openai_key),
             retriever=retriever,
-            memory=memory,
+            memory=st.session_state.memory,
             return_source_documents=True,
-            output_key="answer"  # ✅ fix for multiple output keys
         )
 
-        # Ensure proper chat history format (safety)
-        if not isinstance(memory.chat_memory.messages, list):
-            memory.chat_memory.messages = []
-
-        result = qa_chain.invoke({"question": user_question, "chat_history": [] })
+        result = qa_chain.invoke({"question": user_question})
         st.write(f"💬 Answer: {result['answer']}")
-# ===========================
