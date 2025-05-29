@@ -4,21 +4,18 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from utils.loaders import load_pdf, load_url_content
 from utils.llm_chain import get_combined_response
-from load_vectorstore_from_gcp import load_vectorstore
-from google.oauth2 import service_account
+from load_vectorstore_from_gcp import load_vectorstore_from_gcp
 import tempfile
 import os
 
 # ====== SECRETS & GCP CREDENTIALS ======
 openai_key = st.secrets["OPENAI_API_KEY"]
-
 gcp_credentials_dict = dict(st.secrets["GCP_SERVICE_ACCOUNT"])
-gcp_credentials = service_account.Credentials.from_service_account_info(gcp_credentials_dict)
 
 gcp_config = {
     "bucket_name": "test_bucket_brian",
     "prefix": "vectorstores",
-    "credentials": gcp_credentials
+    "credentials": gcp_credentials_dict  # Pass as dict to match loader expectations
 }
 # ======================================
 
@@ -57,7 +54,12 @@ folder_name = f"timespro_com_executive_education_{sanitize_url(selected_program)
 # ====== LOAD VECTORSTORE ======
 with st.spinner("Loading TimesPro program details..."):
     try:
-        vectorstore = load_vectorstore(folder_name=folder_name, openai_api_key=openai_key, gcp_config=gcp_config)
+        vectorstore_path = f"{gcp_config['prefix']}/{folder_name}"
+        vectorstore = load_vectorstore_from_gcp(
+            bucket_name=gcp_config["bucket_name"],
+            path=vectorstore_path,
+            creds_dict=gcp_config["credentials"]
+        )
         retriever = vectorstore.as_retriever()
         st.success("Vectorstore loaded successfully.")
     except Exception as e:
@@ -68,6 +70,8 @@ with st.spinner("Loading TimesPro program details..."):
 if "memory" not in st.session_state:
     st.session_state.memory = ConversationBufferMemory(
         memory_key="chat_history",
+        input_key="question",
+        output_key="answer",
         return_messages=True,
         k=7
     )
