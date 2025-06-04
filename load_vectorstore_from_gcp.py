@@ -1,40 +1,37 @@
+import os
+import gcsfs
 from langchain_community.vectorstores import FAISS
 from langchain_community.embeddings import OpenAIEmbeddings
-import gcsfs
-import os
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.schema import Document
 
-def load_vectorstore_from_gcp(bucket_name: str, path: str, creds_dict: dict):
-    """
-    Load a FAISS vectorstore from a GCP bucket using a credentials dictionary.
-
-    Args:
-        bucket_name (str): GCP bucket name.
-        path (str): Path to vectorstore files (without trailing slash).
-        creds_dict (dict): GCP service account credentials as dictionary.
-
-    Returns:
-        FAISS: Loaded vectorstore object.
-    """
-    # Use gcsfs with passed credentials
+def upload_vectorstore(local_folder_path: str, bucket_name: str, folder_path: str, creds_dict: dict):
+    """Upload an existing FAISS vectorstore folder to GCP"""
     fs = gcsfs.GCSFileSystem(token=creds_dict)
+    index_faiss = os.path.join(local_folder_path, "index.faiss")
+    index_pkl = os.path.join(local_folder_path, "index.pkl")
 
-    index_path = f"{bucket_name}/{path}/index.faiss"
-    store_path = f"{bucket_name}/{path}/index.pkl"
+    if not (os.path.exists(index_faiss) and os.path.exists(index_pkl)):
+        raise FileNotFoundError("FAISS index files not found in the given path.")
 
-    # Save GCS files to temp folder
-    local_folder = "/tmp/vectorstore"
+    fs.put(index_faiss, f"{bucket_name}/{folder_path}/index.faiss", overwrite=True)
+    fs.put(index_pkl, f"{bucket_name}/{folder_path}/index.pkl", overwrite=True)
+    return True
+
+def create_and_upload_vectorstore_from_pdf(pdf_text: str, bucket_name: str, folder_path: str, creds_dict: dict):
+    """Create a FAISS vectorstore from raw PDF text and upload it to GCP"""
+    # 1. Split the PDF text into chunks
+    text_splitter = CharacterTextSplitter(chunk_size=1000, chunk_overlap=200)
+    docs = text_splitter.split_documents([Document(page_content=pdf_text)])
+
+    # 2. Create FAISS vectorstore
+    embeddings = OpenAIEmbeddings()
+    vectorstore = FAISS.from_documents(docs, embeddings)
+
+    # 3. Save vectorstore to a temporary local folder
+    local_folder = "/tmp/vectorstore_upload"
     os.makedirs(local_folder, exist_ok=True)
+    vectorstore.save_local(local_folder)
 
-    with fs.open(index_path, "rb") as f_in, open(f"{local_folder}/index.faiss", "wb") as f_out:
-        f_out.write(f_in.read())
-
-    with fs.open(store_path, "rb") as f_in, open(f"{local_folder}/index.pkl", "wb") as f_out:
-        f_out.write(f_in.read())
-
-    # Load vectorstore from local files using LangChain’s FAISS loader
-    vectorstore = FAISS.load_local(
-        folder_path=local_folder,
-        embeddings=OpenAIEmbeddings(),
-        allow_dangerous_deserialization=True  # 👈 KEY FIX HERE
-    )
-    return vectorstore
+    # 4. Upload to GCP using existing function
+    return upload_vectorstore(local_folder, bucket_name, folder_path, creds_dict)
