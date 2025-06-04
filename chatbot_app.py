@@ -6,7 +6,8 @@ from PyPDF2 import PdfReader
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
 from langchain.chat_models import ChatOpenAI
-from utils.gcp_loader import load_vectorstore_from_gcp
+#from utils.gcp_loader import load_vectorstore_from_gcp
+from utils.load_vectorstore_from_gcp import load_vectorstore_from_gcp
 from utils.upload_vectorstore_to_gcp import create_and_upload_vectorstore_from_pdf
 from dotenv import load_dotenv
 
