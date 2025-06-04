@@ -1,140 +1,147 @@
 import streamlit as st
-from langchain_openai import ChatOpenAI
-from langchain.chains import ConversationalRetrievalChain
-from langchain.memory import ConversationBufferMemory
-from utils.loaders import load_pdf, load_url_content
-from utils.llm_chain import get_combined_response
-from utils.upload_vectorstore_to_gcp import create_and_upload_vectorstore_from_pdf
-from load_vectorstore_from_gcp import load_vectorstore_from_gcp
-import tempfile
 import os
+import tempfile
+import hashlib
+from PyPDF2 import PdfReader
+from langchain.memory import ConversationBufferMemory
+from langchain.chains import ConversationalRetrievalChain
+from langchain.chat_models import ChatOpenAI
+from utils.gcp_loader import load_vectorstore_from_gcp
+from utils.upload_vectorstore_to_gcp import create_and_upload_vectorstore_from_pdf
+from dotenv import load_dotenv
 
-# ====== SECRETS & GCP CREDENTIALS ======
-openai_key = st.secrets["OPENAI_API_KEY"]
-gcp_credentials_dict = dict(st.secrets["GCP_SERVICE_ACCOUNT"])
+load_dotenv()
+
+openai_api_key = os.getenv("OPENAI_API_KEY")
 
 gcp_config = {
-    "bucket_name": "test_bucket_brian",
-    "prefix": "vectorstores",
-    "credentials": gcp_credentials_dict
+    "bucket_name": os.getenv("GCP_BUCKET_NAME"),
+    "prefix": os.getenv("GCP_VECTORSTORE_PREFIX"),
+    "credentials": {
+        "type": os.getenv("GCP_TYPE"),
+        "project_id": os.getenv("GCP_PROJECT_ID"),
+        "private_key_id": os.getenv("GCP_PRIVATE_KEY_ID"),
+        "private_key": os.getenv("GCP_PRIVATE_KEY").replace("\\n", "\n"),
+        "client_email": os.getenv("GCP_CLIENT_EMAIL"),
+        "client_id": os.getenv("GCP_CLIENT_ID"),
+        "auth_uri": os.getenv("GCP_AUTH_URI"),
+        "token_uri": os.getenv("GCP_TOKEN_URI"),
+        "auth_provider_x509_cert_url": os.getenv("GCP_AUTH_PROVIDER_CERT_URL"),
+        "client_x509_cert_url": os.getenv("GCP_CLIENT_CERT_URL")
+    }
 }
-# =======================================
 
-st.set_page_config(page_title="AI Sales Assistant", layout="centered")
-st.title("📚 AI Sales Assistant")
 
-# ====== MODEL CHOICE ======
-model_choice = st.selectbox(
-    "Choose a model",
-    ["gpt-3.5-turbo", "gpt-4", "gpt-4-1106-preview", "gpt-4o"],
-    index=0
-)
+def sanitize_url(url):
+    return url.replace("https://", "").replace("http://", "").replace("/", "_")
 
-# ====== INPUTS ======
-pdf_file = st.file_uploader("Upload a PDF file", type="pdf")
 
-program_options = [
-    "https://timespro.com/executive-education/iim-calcutta-senior-management-programme",
-    "https://timespro.com/executive-education/iim-kashipur-senior-management-programme",
-    "https://timespro.com/executive-education/iim-raipur-senior-management-programme",
-    "https://timespro.com/executive-education/iim-indore-senior-management-programme",
-    "https://timespro.com/executive-education/iim-kozhikode-strategic-management-programme-for-cxos",
-    "https://timespro.com/executive-education/iim-calcutta-lead-an-advanced-management-programme",
-]
+def load_pdf(pdf_path):
+    pdf_reader = PdfReader(pdf_path)
+    return "\n".join([page.extract_text() for page in pdf_reader.pages if page.extract_text()])
 
-selected_program = st.selectbox("Select TimesPro Program URL", program_options)
-url_1 = selected_program
-url_2 = st.text_input("Input URL 2 (Optional)")
 
-# Sanitize URL
-def sanitize_url(url: str) -> str:
-    return url.strip("/").split("/")[-1].replace("-", "_")
+st.set_page_config(page_title="Course Chatbot", layout="wide")
+st.title("📘 Course Chatbot")
 
-folder_name = f"timespro_com_executive_education_{sanitize_url(selected_program)}"
-vectorstore_path = f"{gcp_config['prefix']}/{folder_name}"
+pdf_file = st.file_uploader("Upload a course brochure (PDF)", type="pdf")
+selected_program = st.selectbox("Or select a TimesPro program", [""] + [
+    "https://timespro.com/executive-education/iim-calcutta-executive-programme-in-business-management",
+    "https://timespro.com/executive-education/iim-kozhikode-professional-certificate-programme-in-hr-management"
+])
+custom_url = st.text_input("Or manually enter a competitor program URL")
 
-# ====== LOAD VECTORSTORE ======
+user_input = st.text_input("Ask a question about the course")
+
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
+
+vectorstore = None
 retriever = None
-with st.spinner("Loading TimesPro program details..."):
-    try:
-        vectorstore = load_vectorstore_from_gcp(
-            bucket_name=gcp_config["bucket_name"],
-            path=vectorstore_path,
-            creds_dict=gcp_config["credentials"]
-        )
-        retriever = vectorstore.as_retriever()
-        st.success("Vectorstore loaded successfully.")
-    except Exception as e:
-        st.error(f"Vectorstore loading failed: {e}")
 
-# ====== CONVERSATION MEMORY ======
-if "memory" not in st.session_state:
-    st.session_state.memory = ConversationBufferMemory(
-        memory_key="chat_history",
-        input_key="question",
-        output_key="answer",
-        return_messages=True,
-        k=7
-    )
+if pdf_file:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp.write(pdf_file.read())
+        pdf_path = tmp.name
 
-if "comparison_output" not in st.session_state:
-    st.session_state.comparison_output = ""
+    pdf_text = load_pdf(pdf_path)
+    pdf_hash = hashlib.md5(pdf_text.encode()).hexdigest()[:10]
+    folder_name = f"uploaded_pdf_{pdf_hash}"
+    vectorstore_path = f"{gcp_config['prefix']}/{folder_name}"
 
-if "comparison_injected" not in st.session_state:
-    st.session_state.comparison_injected = False
+    with st.spinner("Processing uploaded PDF..."):
+        try:
+            vectorstore = load_vectorstore_from_gcp(
+                bucket_name=gcp_config["bucket_name"],
+                path=vectorstore_path,
+                creds_dict=gcp_config["credentials"]
+            )
+            st.success("Vectorstore loaded from GCP.")
+        except Exception:
+            try:
+                st.info("Vectorstore not found. Creating from PDF...")
+                create_and_upload_vectorstore_from_pdf(
+                    pdf_text=pdf_text,
+                    bucket_name=gcp_config["bucket_name"],
+                    folder_path=vectorstore_path,
+                    creds_dict=gcp_config["credentials"]
+                )
+                vectorstore = load_vectorstore_from_gcp(
+                    bucket_name=gcp_config["bucket_name"],
+                    path=vectorstore_path,
+                    creds_dict=gcp_config["credentials"]
+                )
+                st.success("Vectorstore created and loaded.")
+            except Exception as e:
+                st.error(f"Failed to process uploaded PDF: {e}")
 
-# ====== MAIN COMPARISON BUTTON ======
-if st.button("Compare"):
-    if not (pdf_file or url_1 or url_2):
-        st.warning("Please upload a PDF or enter at least one URL.")
-    else:
-        with st.spinner("Comparing TimesPro program with competitors..."):
-            pdf_text = ""
-            if pdf_file:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-                    tmp_pdf.write(pdf_file.read())
-                    pdf_path = tmp_pdf.name
-                pdf_text = load_pdf(pdf_path)
+elif selected_program:
+    folder_name = f"timespro_com_executive_education_{sanitize_url(selected_program)}"
+    vectorstore_path = f"{gcp_config['prefix']}/{folder_name}"
 
-                # === Upload vectorstore to GCP ===
-                st.info("Creating and uploading vectorstore from PDF...")
-                try:
-                    create_and_upload_vectorstore_from_pdf(
-                        pdf_text=pdf_text,
-                        bucket_name=gcp_config["bucket_name"],
-                        folder_path=vectorstore_path,
-                        creds_dict=gcp_config["credentials"]
-                    )
-                    st.success("Vectorstore created and uploaded to GCP.")
-                except Exception as e:
-                    st.error(f"Vectorstore upload failed: {e}")
+    with st.spinner("Loading TimesPro vectorstore..."):
+        try:
+            vectorstore = load_vectorstore_from_gcp(
+                bucket_name=gcp_config["bucket_name"],
+                path=vectorstore_path,
+                creds_dict=gcp_config["credentials"]
+            )
+            st.success("Vectorstore loaded successfully.")
+        except Exception as e:
+            st.error(f"Vectorstore loading failed: {e}")
 
-            url_texts = load_url_content([url_1, url_2])
-            response = get_combined_response(pdf_text, url_texts, model_choice=model_choice)
-            st.session_state.comparison_output = response
-            st.session_state.comparison_injected = False
-            st.success("Here's the comparison:")
-            st.write(response)
+elif custom_url:
+    folder_name = f"competitor_program_{sanitize_url(custom_url)}"
+    vectorstore_path = f"{gcp_config['prefix']}/{folder_name}"
 
-# ====== QA CHATBOT SECTION ======
-st.subheader("💬 Ask a follow-up question about the TimesPro program")
-user_question = st.text_input("Enter your question here")
+    with st.spinner("Loading competitor program vectorstore..."):
+        try:
+            vectorstore = load_vectorstore_from_gcp(
+                bucket_name=gcp_config["bucket_name"],
+                path=vectorstore_path,
+                creds_dict=gcp_config["credentials"]
+            )
+            st.success("Vectorstore loaded successfully.")
+        except Exception as e:
+            st.error(f"Vectorstore loading failed: {e}")
 
-if user_question and retriever:
-    with st.spinner("Answering your question using the knowledge base..."):
+if vectorstore:
+    retriever = vectorstore.as_retriever()
 
-        if st.session_state.comparison_output and not st.session_state.comparison_injected:
-            st.session_state.memory.chat_memory.add_user_message(
-                "Here is a comparison of TimesPro and competitor programs:")
-            st.session_state.memory.chat_memory.add_ai_message(st.session_state.comparison_output)
-            st.session_state.comparison_injected = True
+    if user_input:
+        llm = ChatOpenAI(temperature=0.2, openai_api_key=openai_api_key)
+        memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+        qa_chain = ConversationalRetrievalChain.from_llm(llm, retriever=retriever, memory=memory)
 
-        qa_chain = ConversationalRetrievalChain.from_llm(
-            llm=ChatOpenAI(model_name=model_choice, openai_api_key=openai_key),
-            retriever=retriever,
-            memory=st.session_state.memory,
-            return_source_documents=True,
-        )
+        with st.spinner("Generating answer..."):
+            result = qa_chain({"question": user_input, "chat_history": st.session_state.chat_history})
+            st.session_state.chat_history.append((user_input, result["answer"]))
+            st.markdown("**Answer:**")
+            st.write(result["answer"])
 
-        result = qa_chain.invoke({"question": user_question})
-        st.write(f"💬 Answer: {result['answer']}")
+    if st.session_state.chat_history:
+        st.markdown("---")
+        st.markdown("### Chat History")
+        for i, (q, a) in enumerate(st.session_state.chat_history):
+            st.markdown(f"**Q{i+1}:** {q}")
+            st.markdown(f"**A{i+1}:** {a}")
