@@ -43,7 +43,7 @@ program_options = [
 
 selected_program = st.selectbox("Select TimesPro Program URL", program_options, index=0)
 url_1 = selected_program if selected_program != "-- Select a program --" else None
-url_2 = st.text_input("Input Competitor Program URL")
+url_2 = st.text_input("Input Competitors Program URL")
 
 # ====== SANITIZE URL ======
 def sanitize_url(url: str) -> str:
@@ -82,14 +82,17 @@ if "comparison_output" not in st.session_state:
 if "comparison_injected" not in st.session_state:
     st.session_state.comparison_injected = False
 
-# ====== COMPARISON & CLEAR CACHE BUTTONS ======
+# ====== COMPARISON & CLEAR CACHE BUTTONS SIDE BY SIDE ======
 col_compare, col_clear = st.columns([3, 1])
-with col_compare:
-    compare_clicked = st.button("Compare", disabled=selected_program == "-- Select a program --")
-with col_clear:
-    clear_clicked = st.button("Clear Cache 🧹", help="Reset chat and comparison history")
 
-# ====== CONFIRM CLEAR ======
+with col_compare:
+    compare_disabled = selected_program == "-- Select a program --"
+    compare_clicked = st.button("Compare", disabled=compare_disabled)
+
+with col_clear:
+    clear_clicked = st.button("Clear Cache 🧹", help="This will reset chat history and comparison")
+
+# ====== CLEAR CACHE CONFIRMATION ======
 if clear_clicked:
     st.session_state.show_confirm_clear = True
 
@@ -105,12 +108,14 @@ if st.session_state.get("show_confirm_clear", False):
             if st.button("Cancel", key="cancel_clear"):
                 st.session_state.show_confirm_clear = False
 
-# ====== COMPARISON LOGIC ======
+# ====== HANDLE COMPARISON LOGIC ======
 if compare_clicked:
-    if not (pdf_file or url_1 or url_2):
+    if selected_program == "-- Select a program --":
+        st.warning("Please select a valid TimesPro program from the dropdown.")
+    elif not (pdf_file or url_1 or url_2):
         st.warning("Please upload a PDF or enter at least one URL.")
     else:
-        with st.spinner("Comparing TimesPro program with competitor..."):
+        with st.spinner("Comparing TimesPro program with competitors..."):
             pdf_text = ""
             if pdf_file:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
@@ -118,27 +123,27 @@ if compare_clicked:
                     pdf_path = tmp_pdf.name
                 pdf_text = load_pdf(pdf_path)
 
-            url_texts = load_url_content([url_1, url_2])
+            url_texts = load_url_content([url_1, url_2]) or {}
             response = get_combined_response(pdf_text, url_texts, model_choice=model_choice)
             st.session_state.comparison_output = response
             st.session_state.comparison_injected = False
 
-# ====== DISPLAY COMPARISON OUTPUT ======
+# ====== DISPLAY COMPARISON OUTPUT IF EXISTS ======
 if st.session_state.get("comparison_output"):
     st.success("Here's the comparison:")
     st.write(st.session_state.comparison_output)
 
-# ====== QA SECTION ======
+# ====== QA CHATBOT SECTION ======
 st.subheader("💬 Ask a follow-up question about the TimesPro program")
 user_question = st.text_input("Enter your question here")
 
 if user_question:
     if not retriever:
-        st.warning("Knowledge base not available. Please select a valid TimesPro program.")
+        st.warning("Knowledge base is not available. Please select a program to load its data.")
     else:
-        with st.spinner("Answering your question..."):
+        with st.spinner("Answering your question using all available information..."):
 
-            # Extract all context
+            # 1. Load supporting content
             pdf_text = ""
             if pdf_file:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
@@ -146,11 +151,15 @@ if user_question:
                     pdf_path = tmp_pdf.name
                 pdf_text = load_pdf(pdf_path)
 
-            url_contexts = load_url_content([url_1, url_2]) if url_1 or url_2 else {}
+            url_contexts = load_url_content([url_1, url_2]) or {}
+            timespro_context = url_contexts.get(url_1, "")
+            competitor_context = url_contexts.get(url_2, "")
             comparison_context = st.session_state.comparison_output or ""
 
-            # Construct system prompt
-            system_prompt = """You are an expert EdTech counselor. Use the context below to answer user queries.
+            # 2. Custom Prompt
+            system_prompt = """You are an expert EdTech counselor. You must answer user queries based on the provided TimesPro course content, competitor details, and the PDF brochure if available.
+
+Use the following context:
 
 --- TIMESPRO COURSE CONTENT ---
 {timespro_context}
@@ -164,17 +173,18 @@ if user_question:
 --- COMPARISON OUTPUT ---
 {comparison_context}
 
-Only use the above content. If unsure, say you don’t know.
+Only answer using the above context. Be accurate, neutral, and helpful.
+If you don't know something, say so honestly.
 """
 
             formatted_prompt = system_prompt.format(
-                timespro_context=url_contexts.get(url_1, ""),
-                competitor_context=url_contexts.get(url_2, ""),
+                timespro_context=timespro_context,
+                competitor_context=competitor_context,
                 pdf_context=pdf_text,
                 comparison_context=comparison_context,
             )
 
-            # LLM and QA chain
+            # 3. LLM setup
             custom_llm = ChatOpenAI(
                 model_name=model_choice,
                 openai_api_key=openai_key,
@@ -188,13 +198,13 @@ Only use the above content. If unsure, say you don’t know.
                 return_source_documents=True
             )
 
-            # Inject context into memory if not already done
+            # 4. Inject context into memory if not already
             if not st.session_state.comparison_injected:
                 st.session_state.memory.chat_memory.add_user_message("System Prompt with Full Context")
                 st.session_state.memory.chat_memory.add_ai_message(formatted_prompt)
                 st.session_state.comparison_injected = True
 
-            # Final prompt to send
+            # 5. Run QA with full prompt
             full_question = formatted_prompt + "\n\nUser Question: " + user_question
             result = qa_chain.invoke({"question": full_question})
             st.write(f"💬 **Answer:** {result['answer']}")
