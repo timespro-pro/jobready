@@ -1,5 +1,5 @@
 import streamlit as st
-from langchain_openai import ChatOpenAI
+from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from utils.loaders import load_pdf, load_url_content
@@ -143,7 +143,6 @@ if user_question:
     else:
         with st.spinner("Answering your question using all available information..."):
 
-            # 1. Load supporting content
             pdf_text = ""
             if pdf_file:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
@@ -156,7 +155,6 @@ if user_question:
             competitor_context = url_contexts.get(url_2, "")
             comparison_context = st.session_state.comparison_output or ""
 
-            # 2. Custom Prompt
             system_prompt = """You are an expert EdTech counselor. You must answer user queries based on the provided TimesPro course content, competitor details, and the PDF brochure if available.
 
 Use the following context:
@@ -184,7 +182,6 @@ If you don't know something, say so honestly.
                 comparison_context=comparison_context,
             )
 
-            # 3. LLM setup
             custom_llm = ChatOpenAI(
                 model_name=model_choice,
                 openai_api_key=openai_key,
@@ -198,13 +195,11 @@ If you don't know something, say so honestly.
                 return_source_documents=True
             )
 
-            # 4. Inject context into memory if not already
             if not st.session_state.comparison_injected:
                 st.session_state.memory.chat_memory.add_user_message("System Prompt with Full Context")
                 st.session_state.memory.chat_memory.add_ai_message(formatted_prompt)
                 st.session_state.comparison_injected = True
 
-            # 5. Run QA with full prompt
             full_question = formatted_prompt + "\n\nUser Question: " + user_question
             result = qa_chain.invoke({"question": full_question})
             st.write(f"💬 **Answer:** {result['answer']}")
