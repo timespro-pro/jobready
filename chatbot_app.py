@@ -67,7 +67,7 @@ if st.session_state.get("show_confirm", False):
                 st.session_state.comparison_injected = False
                 st.session_state.show_confirm = False
                 confirm_box.empty()
-                st.experimental_rerun()
+                st.rerun()
         with col2:
             if st.button("❌ Cancel", key="confirm_clear_no"):
                 st.session_state.show_confirm = False
