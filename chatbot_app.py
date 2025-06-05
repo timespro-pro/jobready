@@ -96,7 +96,7 @@ program_options = [
  
 selected_program = st.selectbox("Select TimesPro Program URL", program_options)
 url_1 = selected_program
-url_2 = st.text_input("Input URL 2 (Optional)")
+url_2 = st.text_input("Input Competitors Program URL")
  
 # Sanitize URL
 def sanitize_url(url: str) -> str:
