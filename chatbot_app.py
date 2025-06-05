@@ -87,7 +87,8 @@ if "comparison_injected" not in st.session_state:
 col_compare, col_clear = st.columns([3, 1])
 
 with col_compare:
-    compare_clicked = st.button("Compare")
+    compare_disabled = selected_program == "-- Select a program --"
+    compare_clicked = st.button("Compare", disabled=compare_disabled)
 
 with col_clear:
     clear_clicked = st.button("Clear Cache 🧹", help="This will reset chat history and comparison")
@@ -110,7 +111,9 @@ if st.session_state.get("show_confirm_clear", False):
 
 # ====== HANDLE COMPARISON LOGIC ======
 if compare_clicked:
-    if not (pdf_file or url_1 or url_2):
+    if selected_program == "-- Select a program --":
+        st.warning("Please select a valid TimesPro program from the dropdown.")
+    elif not (pdf_file or url_1 or url_2):
         st.warning("Please upload a PDF or enter at least one URL.")
     else:
         with st.spinner("Comparing TimesPro program with competitors..."):
@@ -127,6 +130,7 @@ if compare_clicked:
             st.session_state.comparison_injected = False
             st.success("Here's the comparison:")
             st.write(response)
+
 
 # ====== QA CHATBOT SECTION ======
 st.subheader("💬 Ask a follow-up question about the TimesPro program")
