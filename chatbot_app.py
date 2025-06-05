@@ -108,9 +108,8 @@ st.markdown("### 💬 Ask a follow-up question about the TimesPro program")
 user_question = st.text_input("Enter your question here:")
 
 if user_question and retriever:
-
-# ====== STRICT QA PROMPT TEMPLATE ======
-base_prompt = """
+    # ====== STRICT QA PROMPT TEMPLATE ======
+    base_prompt = """
 You are a helpful assistant. Answer the user’s question ONLY using the provided context from the TimesPro program documentation.
 Do NOT use any prior knowledge or assumptions. If the answer is not found in the context, say “The document does not contain this information.”
 
@@ -122,37 +121,33 @@ Additional Notes (if any):
 
 Question:
 {question}
-"""
+    """
 
-# NOTE: Only 'question' and 'comparison_info' should be input variables
-full_prompt = PromptTemplate(
-    input_variables=["question", "comparison_info"],
-    template=base_prompt
-)
+    # NOTE: Only 'question' and 'comparison_info' should be input variables
+    full_prompt = PromptTemplate(
+        input_variables=["question", "comparison_info"],
+        template=base_prompt
+    )
 
-llm = ChatOpenAI(model_name=model_choice, openai_api_key=openai_key)
+    llm = ChatOpenAI(model_name=model_choice, openai_api_key=openai_key)
 
-st.session_state.qa_chain = RetrievalQA.from_chain_type(
-    llm=llm,
-    retriever=retriever,
-    chain_type="stuff",
-    chain_type_kwargs={
-        "prompt": full_prompt,
-        "verbose": True
-    },
-    return_source_documents=True
-)
+    st.session_state.qa_chain = RetrievalQA.from_chain_type(
+        llm=llm,
+        retriever=retriever,
+        chain_type="stuff",
+        chain_type_kwargs={"prompt": full_prompt},
+        return_source_documents=True
+    )
 
-comparison_context = st.session_state.comparison_output or "N/A"
+    comparison_context = st.session_state.comparison_output or "N/A"
 
-response = st.session_state.qa_chain.invoke({
-    "question": user_question,
-    "comparison_info": comparison_context
-})
+    response = st.session_state.qa_chain.invoke({
+        "question": user_question,
+        "comparison_info": comparison_context
+    })
 
-st.markdown("#### 💡 Answer:")
-st.write(response["result"])
-
+    st.markdown("#### 💡 Answer:")
+    st.write(response["result"])
 
     # ==== Source Documents ====
     if response.get("source_documents"):
@@ -162,10 +157,9 @@ st.write(response["result"])
             st.code(doc.page_content[:500] + "..." if len(doc.page_content) > 500 else doc.page_content)
 
     # ==== Fallback Logic ====
-    if "The document does not contain this information" in answer:
+    if "The document does not contain this information" in response["result"]:
         st.markdown("🤖 Attempting fallback with LLM reasoning...")
 
-        # Get all raw context (URLs + PDF + comparison)
         pdf_text = ""
         if pdf_file:
             with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
