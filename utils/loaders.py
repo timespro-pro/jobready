@@ -12,16 +12,18 @@ def load_pdf(pdf_path):
                 text += page_text + "\n"
     return text
 
-def load_url_content(urls):
-    texts = []
+def load_url_content(urls: list) -> dict:
+    from bs4 import BeautifulSoup
+    import requests
+
+    url_contexts = {}
     for url in urls:
-        if url:
-            try:
-                response = requests.get(url, timeout=10)
-                soup = BeautifulSoup(response.text, "html.parser")
-                texts.append(soup.get_text(separator=" ", strip=True))
-            except Exception as e:
-                texts.append(f"Error loading {url}: {str(e)}")
-        else:
-            texts.append("")  # Keep indexing consistent
-    return texts
+        try:
+            response = requests.get(url, timeout=10)
+            soup = BeautifulSoup(response.text, "html.parser")
+            text = soup.get_text(separator=" ", strip=True)
+            url_contexts[url] = text[:3000]  # truncate to 3000 chars if needed
+        except Exception as e:
+            url_contexts[url] = f"Error fetching URL content: {e}"
+    return url_contexts
+
