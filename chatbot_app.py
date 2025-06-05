@@ -128,8 +128,11 @@ if compare_clicked:
             response = get_combined_response(pdf_text, url_texts, model_choice=model_choice)
             st.session_state.comparison_output = response
             st.session_state.comparison_injected = False
-            st.success("Here's the comparison:")
-            st.write(response)
+
+# ====== DISPLAY COMPARISON OUTPUT IF EXISTS ======
+if st.session_state.get("comparison_output"):
+    st.success("Here's the comparison:")
+    st.write(st.session_state.comparison_output)
 
 
 # ====== QA CHATBOT SECTION ======
