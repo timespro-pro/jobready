@@ -151,17 +151,12 @@ if user_question:
                     pdf_path = tmp_pdf.name
                 pdf_text = load_pdf(pdf_path)
 
-            url_contexts = []
-            if url_1 or url_2:
-                url_contexts = load_url_content([url_1, url_2])
-
-            timespro_context = url_contexts[0] if len(url_contexts) > 0 else ""
-            competitor_context = url_contexts[1] if len(url_contexts) > 1 else ""
+            url_contexts = load_url_content([url_1, url_2]) if url_1 or url_2 else {}
             comparison_context = st.session_state.comparison_output or ""
 
             # 2. Prepare custom context-injected prompt
             system_prompt = """You are an expert EdTech counselor. You must answer user queries based on the provided TimesPro course content, competitor details, and the PDF brochure if available.
-
+            
 Use the following context:
 
 --- TIMESPRO COURSE CONTENT ---
@@ -182,13 +177,13 @@ If you don't know something, say so honestly.
 
             # Fill in the prompt with available content
             formatted_prompt = system_prompt.format(
-                timespro_context=timespro_context,
-                competitor_context=competitor_context,
+                timespro_context=url_contexts.get(url_1, ""),
+                competitor_context=url_contexts.get(url_2, ""),
                 pdf_context=pdf_text,
                 comparison_context=comparison_context,
             )
 
-            # 3. Construct chain with custom prompt
+            # 3. Construct chain WITHOUT invalid prompt args
             custom_llm = ChatOpenAI(
                 model_name=model_choice,
                 openai_api_key=openai_key,
@@ -199,9 +194,7 @@ If you don't know something, say so honestly.
                 llm=custom_llm,
                 retriever=retriever,
                 memory=st.session_state.memory,
-                return_source_documents=True,
-                condense_question_prompt=None,
-                chain_type_kwargs={"prompt": None},  # using full custom context in system prompt
+                return_source_documents=True
             )
 
             # 4. Inject the context into memory if not done
@@ -210,6 +203,7 @@ If you don't know something, say so honestly.
                 st.session_state.memory.chat_memory.add_ai_message(formatted_prompt)
                 st.session_state.comparison_injected = True
 
-            # 5. Run inference
-            result = qa_chain.invoke({"question": user_question})
+            # 5. Prepend formatted prompt to user question and invoke
+            full_question = formatted_prompt + "\n\nUser Question: " + user_question
+            result = qa_chain.invoke({"question": full_question})
             st.write(f"💬 **Answer:** {result['answer']}")
