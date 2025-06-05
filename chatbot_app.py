@@ -21,6 +21,36 @@ gcp_config = {
  
 st.set_page_config(page_title="AI Sales Assistant", layout="centered")
 st.title("📚 AI Sales Assistant")
+
+# ====== CLEAR CACHE BUTTON WITH CONFIRMATION AND TOOLTIP ======
+col1, col2 = st.columns([1, 9])
+with col1:
+    # Step 1: Show the button with tooltip
+    if st.button("🟥 Clear Cache", help="Click to clear memory and chat history"):
+        st.session_state.confirm_clear = True
+
+# Step 2: Show confirmation dialog if triggered
+if st.session_state.get("confirm_clear", False):
+    with st.modal("⚠️ Confirm Cache Clear"):
+        st.markdown("Are you sure you want to **clear the memory and reset the chat**? This action cannot be undone.")
+        col_a, col_b = st.columns([1, 1])
+        with col_a:
+            if st.button("✅ Yes, Clear"):
+                st.session_state.memory = ConversationBufferMemory(
+                    memory_key="chat_history",
+                    input_key="question",
+                    output_key="answer",
+                    return_messages=True,
+                    k=7
+                )
+                st.session_state.comparison_output = ""
+                st.session_state.comparison_injected = False
+                st.session_state.confirm_clear = False
+                st.experimental_rerun()
+        with col_b:
+            if st.button("❌ Cancel"):
+                st.session_state.confirm_clear = False
+
  
 # ====== MODEL CHOICE ======
 model_choice = st.selectbox(
