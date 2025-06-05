@@ -1,6 +1,6 @@
 import streamlit as st
 import tempfile
-from langchain.chains import RetrievalQA
+from langchain.chains import RetrievalQA, LLMChain
 from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
 from utils.loaders import load_pdf, load_url_content
@@ -131,24 +131,68 @@ Question:
 
     llm = ChatOpenAI(model_name=model_choice, openai_api_key=openai_key)
 
-    st.session_state.qa_chain = RetrievalQA.from_chain_type(
+    qa_chain = RetrievalQA.from_chain_type(
         llm=llm,
         retriever=retriever,
         chain_type="stuff",
-        chain_type_kwargs={
-            "prompt": full_prompt,
-            "verbose": True
-        },
+        chain_type_kwargs={"prompt": full_prompt},
         return_source_documents=True
     )
 
-    # ====== Build input for the QA chain ======
     comparison_context = st.session_state.comparison_output or "N/A"
 
-    response = st.session_state.qa_chain.invoke({
+    response = qa_chain.invoke({
         "question": user_question,
         "comparison_info": comparison_context
     })
 
+    answer = response["result"]
+
     st.markdown("#### 💡 Answer:")
-    st.write(response["result"])
+    st.write(answer)
+
+    # ==== Source Documents ====
+    if response.get("source_documents"):
+        st.markdown("#### 📄 Sources Used:")
+        for i, doc in enumerate(response["source_documents"]):
+            st.markdown(f"**Source {i+1}:** `{doc.metadata.get('source', 'Unknown')}`")
+            st.code(doc.page_content[:500] + "..." if len(doc.page_content) > 500 else doc.page_content)
+
+    # ==== Fallback Logic ====
+    if "The document does not contain this information" in answer:
+        st.markdown("🤖 Attempting fallback with LLM reasoning...")
+
+        # Get all raw context (URLs + PDF + comparison)
+        pdf_text = ""
+        if pdf_file:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                tmp_pdf.write(pdf_file.read())
+                pdf_path = tmp_pdf.name
+            pdf_text = load_pdf(pdf_path)
+
+        url_texts = load_url_content([url_1, url_2])
+        fallback_context = "\n\n".join([st.session_state.comparison_output or "", pdf_text, url_texts])
+
+        fallback_prompt = PromptTemplate(
+            input_variables=["context", "question"],
+            template="""
+You are an expert educational consultant. Based on the context below, try to answer the user’s question.
+If unsure, say you don’t know.
+
+Context:
+{context}
+
+Question:
+{question}
+            """
+        )
+
+        fallback_chain = LLMChain(llm=llm, prompt=fallback_prompt)
+
+        fallback_answer = fallback_chain.invoke({
+            "context": fallback_context,
+            "question": user_question
+        })
+
+        st.markdown("#### 🧠 Fallback Answer (LLM-based):")
+        st.write(fallback_answer["text"])
