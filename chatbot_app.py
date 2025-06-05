@@ -43,7 +43,7 @@ program_options = [
 
 selected_program = st.selectbox("Select TimesPro Program URL", program_options, index=0)
 url_1 = selected_program if selected_program != "-- Select a program --" else None
-url_2 = st.text_input("Input Competitors Program URL")
+url_2 = st.text_input("Input Competitor Program URL")
 
 # ====== SANITIZE URL ======
 def sanitize_url(url: str) -> str:
@@ -82,17 +82,14 @@ if "comparison_output" not in st.session_state:
 if "comparison_injected" not in st.session_state:
     st.session_state.comparison_injected = False
 
-# ====== COMPARISON & CLEAR CACHE BUTTONS SIDE BY SIDE ======
+# ====== COMPARISON & CLEAR CACHE BUTTONS ======
 col_compare, col_clear = st.columns([3, 1])
-
 with col_compare:
-    compare_disabled = selected_program == "-- Select a program --"
-    compare_clicked = st.button("Compare", disabled=compare_disabled)
-
+    compare_clicked = st.button("Compare", disabled=selected_program == "-- Select a program --")
 with col_clear:
-    clear_clicked = st.button("Clear Cache 🧹", help="This will reset chat history and comparison")
+    clear_clicked = st.button("Clear Cache 🧹", help="Reset chat and comparison history")
 
-# ====== CLEAR CACHE CONFIRMATION ======
+# ====== CONFIRM CLEAR ======
 if clear_clicked:
     st.session_state.show_confirm_clear = True
 
@@ -108,14 +105,12 @@ if st.session_state.get("show_confirm_clear", False):
             if st.button("Cancel", key="cancel_clear"):
                 st.session_state.show_confirm_clear = False
 
-# ====== HANDLE COMPARISON LOGIC ======
+# ====== COMPARISON LOGIC ======
 if compare_clicked:
-    if selected_program == "-- Select a program --":
-        st.warning("Please select a valid TimesPro program from the dropdown.")
-    elif not (pdf_file or url_1 or url_2):
+    if not (pdf_file or url_1 or url_2):
         st.warning("Please upload a PDF or enter at least one URL.")
     else:
-        with st.spinner("Comparing TimesPro program with competitors..."):
+        with st.spinner("Comparing TimesPro program with competitor..."):
             pdf_text = ""
             if pdf_file:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
@@ -128,22 +123,22 @@ if compare_clicked:
             st.session_state.comparison_output = response
             st.session_state.comparison_injected = False
 
-# ====== DISPLAY COMPARISON OUTPUT IF EXISTS ======
+# ====== DISPLAY COMPARISON OUTPUT ======
 if st.session_state.get("comparison_output"):
     st.success("Here's the comparison:")
     st.write(st.session_state.comparison_output)
 
-# ====== QA CHATBOT SECTION ======
+# ====== QA SECTION ======
 st.subheader("💬 Ask a follow-up question about the TimesPro program")
 user_question = st.text_input("Enter your question here")
 
 if user_question:
     if not retriever:
-        st.warning("Knowledge base is not available. Please select a program to load its data.")
+        st.warning("Knowledge base not available. Please select a valid TimesPro program.")
     else:
-        with st.spinner("Answering your question using all available information..."):
+        with st.spinner("Answering your question..."):
 
-            # 1. Extract all context
+            # Extract all context
             pdf_text = ""
             if pdf_file:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
@@ -154,10 +149,8 @@ if user_question:
             url_contexts = load_url_content([url_1, url_2]) if url_1 or url_2 else {}
             comparison_context = st.session_state.comparison_output or ""
 
-            # 2. Prepare custom context-injected prompt
-            system_prompt = """You are an expert EdTech counselor. You must answer user queries based on the provided TimesPro course content, competitor details, and the PDF brochure if available.
-            
-Use the following context:
+            # Construct system prompt
+            system_prompt = """You are an expert EdTech counselor. Use the context below to answer user queries.
 
 --- TIMESPRO COURSE CONTENT ---
 {timespro_context}
@@ -171,11 +164,9 @@ Use the following context:
 --- COMPARISON OUTPUT ---
 {comparison_context}
 
-Only answer using the above context. Be accurate, neutral, and helpful.
-If you don't know something, say so honestly.
+Only use the above content. If unsure, say you don’t know.
 """
 
-            # Fill in the prompt with available content
             formatted_prompt = system_prompt.format(
                 timespro_context=url_contexts.get(url_1, ""),
                 competitor_context=url_contexts.get(url_2, ""),
@@ -183,7 +174,7 @@ If you don't know something, say so honestly.
                 comparison_context=comparison_context,
             )
 
-            # 3. Construct chain WITHOUT invalid prompt args
+            # LLM and QA chain
             custom_llm = ChatOpenAI(
                 model_name=model_choice,
                 openai_api_key=openai_key,
@@ -197,13 +188,13 @@ If you don't know something, say so honestly.
                 return_source_documents=True
             )
 
-            # 4. Inject the context into memory if not done
+            # Inject context into memory if not already done
             if not st.session_state.comparison_injected:
                 st.session_state.memory.chat_memory.add_user_message("System Prompt with Full Context")
                 st.session_state.memory.chat_memory.add_ai_message(formatted_prompt)
                 st.session_state.comparison_injected = True
 
-            # 5. Prepend formatted prompt to user question and invoke
+            # Final prompt to send
             full_question = formatted_prompt + "\n\nUser Question: " + user_question
             result = qa_chain.invoke({"question": full_question})
             st.write(f"💬 **Answer:** {result['answer']}")
