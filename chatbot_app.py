@@ -1,11 +1,11 @@
 import streamlit as st
-import tempfile
-from langchain.chains import RetrievalQA, LLMChain
-from langchain.prompts import PromptTemplate
 from langchain_openai import ChatOpenAI
+from langchain.chains import ConversationalRetrievalChain
+from langchain.memory import ConversationBufferMemory
 from utils.loaders import load_pdf, load_url_content
 from utils.llm_chain import get_combined_response
 from load_vectorstore_from_gcp import load_vectorstore_from_gcp
+import tempfile
 
 # ====== SECRETS & GCP CREDENTIALS ======
 openai_key = st.secrets["OPENAI_API_KEY"]
@@ -21,7 +21,7 @@ gcp_config = {
 st.set_page_config(page_title="AI Sales Assistant", layout="centered")
 st.title("📚 AI Sales Assistant")
 
-# ====== MODEL SELECTION ======
+# ====== MODEL CHOICE ======
 model_choice = st.selectbox(
     "Choose a model",
     ["gpt-3.5-turbo", "gpt-4", "gpt-4-1106-preview", "gpt-4o"],
@@ -43,9 +43,9 @@ program_options = [
 
 selected_program = st.selectbox("Select TimesPro Program URL", program_options, index=0)
 url_1 = selected_program if selected_program != "-- Select a program --" else None
-url_2 = st.text_input("Input Competitor Program URL")
+url_2 = st.text_input("Input Competitors Program URL")
 
-# ====== UTILS ======
+# ====== SANITIZE URL ======
 def sanitize_url(url: str) -> str:
     return url.strip("/").split("/")[-1].replace("-", "_")
 
@@ -67,128 +67,144 @@ if url_1:
             st.error(f"Vectorstore loading failed: {e}")
 
 # ====== SESSION STATE INIT ======
+if "memory" not in st.session_state:
+    st.session_state.memory = ConversationBufferMemory(
+        memory_key="chat_history",
+        input_key="question",
+        output_key="answer",
+        return_messages=True,
+        k=7
+    )
+
 if "comparison_output" not in st.session_state:
     st.session_state.comparison_output = ""
 
-if "qa_chain" not in st.session_state:
-    st.session_state.qa_chain = None
+if "comparison_injected" not in st.session_state:
+    st.session_state.comparison_injected = False
 
-# ====== COMPARISON LOGIC ======
+# ====== COMPARISON & CLEAR CACHE BUTTONS SIDE BY SIDE ======
 col_compare, col_clear = st.columns([3, 1])
+
 with col_compare:
-    compare_clicked = st.button("Compare", disabled=(selected_program == "-- Select a program --"))
+    compare_disabled = selected_program == "-- Select a program --"
+    compare_clicked = st.button("Compare", disabled=compare_disabled)
+
 with col_clear:
-    clear_clicked = st.button("Clear Cache 🧹")
+    clear_clicked = st.button("Clear Cache 🧹", help="This will reset chat history and comparison")
 
+# ====== CLEAR CACHE CONFIRMATION ======
 if clear_clicked:
-    st.session_state.clear()
-    st.rerun()
+    st.session_state.show_confirm_clear = True
 
-if compare_clicked and (url_1 or url_2 or pdf_file):
-    with st.spinner("Comparing TimesPro program with competitors..."):
-        pdf_text = ""
-        if pdf_file:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-                tmp_pdf.write(pdf_file.read())
-                pdf_path = tmp_pdf.name
-            pdf_text = load_pdf(pdf_path)
+if st.session_state.get("show_confirm_clear", False):
+    with st.expander("⚠️ Confirm Clear Cache", expanded=True):
+        st.warning("Are you sure you want to clear chat and comparison history?")
+        col_confirm, col_cancel = st.columns(2)
+        with col_confirm:
+            if st.button("Yes, clear it", key="confirm_clear"):
+                st.session_state.clear()
+                st.rerun()
+        with col_cancel:
+            if st.button("Cancel", key="cancel_clear"):
+                st.session_state.show_confirm_clear = False
 
-        url_texts = load_url_content([url_1, url_2])
-        comparison = get_combined_response(pdf_text, url_texts, model_choice=model_choice)
-        st.session_state.comparison_output = comparison
-        st.success("Comparison completed.")
+# ====== HANDLE COMPARISON LOGIC ======
+if compare_clicked:
+    if selected_program == "-- Select a program --":
+        st.warning("Please select a valid TimesPro program from the dropdown.")
+    elif not (pdf_file or url_1 or url_2):
+        st.warning("Please upload a PDF or enter at least one URL.")
+    else:
+        with st.spinner("Comparing TimesPro program with competitors..."):
+            pdf_text = ""
+            if pdf_file:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                    tmp_pdf.write(pdf_file.read())
+                    pdf_path = tmp_pdf.name
+                pdf_text = load_pdf(pdf_path)
 
-# ====== DISPLAY COMPARISON RESULT ======
+            url_texts = load_url_content([url_1, url_2])
+            response = get_combined_response(pdf_text, url_texts, model_choice=model_choice)
+            st.session_state.comparison_output = response
+            st.session_state.comparison_injected = False
+
+# ====== DISPLAY COMPARISON OUTPUT IF EXISTS ======
 if st.session_state.get("comparison_output"):
-    st.markdown("### 🤖 Comparison Output:")
+    st.success("Here's the comparison:")
     st.write(st.session_state.comparison_output)
 
-# ====== CHATBOT QA SECTION ======
-st.markdown("### 💬 Ask a follow-up question about the TimesPro program")
-user_question = st.text_input("Enter your question here:")
+# ====== QA CHATBOT SECTION ======
+st.subheader("💬 Ask a follow-up question about the TimesPro program")
+user_question = st.text_input("Enter your question here")
 
-if user_question and retriever:
-    base_prompt = """
-    You are a helpful assistant. Answer the user’s question ONLY using the provided context from the TimesPro program documentation.
-    Do NOT use any prior knowledge or assumptions. If the answer is not found in the context, say “The document does not contain this information.”
+if user_question:
+    if not retriever:
+        st.warning("Knowledge base is not available. Please select a program to load its data.")
+    else:
+        with st.spinner("Answering your question using all available information..."):
 
-    Context:
-    {context}
+            # 1. Extract all context
+            pdf_text = ""
+            if pdf_file:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                    tmp_pdf.write(pdf_file.read())
+                    pdf_path = tmp_pdf.name
+                pdf_text = load_pdf(pdf_path)
 
-    Additional Notes (if any):
-    {comparison_info}
+            url_contexts = load_url_content([url_1, url_2]) if url_1 or url_2 else {}
+            comparison_context = st.session_state.comparison_output or ""
 
-    Question:
-    {question}
-    """
+            # 2. Prepare custom context-injected prompt
+            system_prompt = """You are an expert EdTech counselor. You must answer user queries based on the provided TimesPro course content, competitor details, and the PDF brochure if available.
+            
+Use the following context:
 
-    full_prompt = PromptTemplate(
-        input_variables=["context", "question", "comparison_info"],
-        template=base_prompt
-    )
+--- TIMESPRO COURSE CONTENT ---
+{timespro_context}
 
-    llm = ChatOpenAI(model_name=model_choice, openai_api_key=openai_key)
+--- COMPETITOR PROGRAM DETAILS ---
+{competitor_context}
 
-    st.session_state.qa_chain = RetrievalQA.from_chain_type(
-        llm=llm,
-        retriever=retriever,
-        chain_type="stuff",
-        chain_type_kwargs={
-            "prompt": full_prompt,
-            "verbose": True
-        },
-        return_source_documents=True
-    )
+--- PDF BROCHURE CONTENT ---
+{pdf_context}
 
-    comparison_context = st.session_state.comparison_output or "N/A"
+--- COMPARISON OUTPUT ---
+{comparison_context}
 
-    response = st.session_state.qa_chain.invoke({
-        "question": user_question,
-        "comparison_info": comparison_context
-    })
+Only answer using the above context. Be accurate, neutral, and helpful.
+If you don't know something, say so honestly.
+"""
 
-    st.markdown("#### 💡 Answer:")
-    st.write(response["result"])
+            # Fill in the prompt with available content
+            formatted_prompt = system_prompt.format(
+                timespro_context=url_contexts.get(url_1, ""),
+                competitor_context=url_contexts.get(url_2, ""),
+                pdf_context=pdf_text,
+                comparison_context=comparison_context,
+            )
 
-    if response.get("source_documents"):
-        st.markdown("#### 📄 Sources Used:")
-        for i, doc in enumerate(response["source_documents"]):
-            st.markdown(f"**Source {i+1}:** `{doc.metadata.get('source', 'Unknown')}`")
-            st.code(doc.page_content[:500] + "..." if len(doc.page_content) > 500 else doc.page_content)
+            # 3. Construct chain with custom prompt
+            custom_llm = ChatOpenAI(
+                model_name=model_choice,
+                openai_api_key=openai_key,
+                temperature=0
+            )
 
-    if "The document does not contain this information" in response["result"]:
-        st.markdown("🤖 Attempting fallback with LLM reasoning...")
+            qa_chain = ConversationalRetrievalChain.from_llm(
+                llm=custom_llm,
+                retriever=retriever,
+                memory=st.session_state.memory,
+                return_source_documents=True,
+                condense_question_prompt=None,
+                chain_type_kwargs={"prompt": None},  # we use full custom context
+            )
 
-        pdf_text = ""
-        if pdf_file:
-            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-                tmp_pdf.write(pdf_file.read())
-                pdf_path = tmp_pdf.name
-            pdf_text = load_pdf(pdf_path)
+            # 4. Inject the context into memory if not done
+            if not st.session_state.comparison_injected:
+                st.session_state.memory.chat_memory.add_user_message("System Prompt with Full Context")
+                st.session_state.memory.chat_memory.add_ai_message(formatted_prompt)
+                st.session_state.comparison_injected = True
 
-        url_texts = load_url_content([url_1, url_2])
-        fallback_context = "\n\n".join([st.session_state.comparison_output or "", pdf_text, url_texts])
-
-        fallback_prompt = PromptTemplate(
-            input_variables=["context", "question"],
-            template="""
-            You are an expert educational consultant. Based on the context below, try to answer the user’s question.
-            If unsure, say you don’t know.
-
-            Context:
-            {context}
-
-            Question:
-            {question}
-            """
-        )
-
-        fallback_chain = LLMChain(llm=llm, prompt=fallback_prompt)
-
-        fallback_answer = fallback_chain.invoke({
-            "context": fallback_context,
-            "question": user_question
-        })
-
-        st.markdown("#### 🧠 Fallback Answer (LLM-based):")
-        st.write(fallback_answer["text"])
+            # 5. Run inference
+            result = qa_chain.invoke({"question": user_question})
+            st.write(f"💬 **Answer:** {result['answer']}")
