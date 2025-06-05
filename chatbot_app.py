@@ -152,7 +152,7 @@ Question:
     if response.get("source_documents"):
         st.markdown("#### 📄 Sources Used:")
         for i, doc in enumerate(response["source_documents"]):
-            st.markdown(f"**Source {i+1}:** {doc.metadata.get('source', 'unknown')}")
+            st.markdown(f"**Source {i+1}:** `{doc.metadata.get('source', 'unknown')}`")
             st.code(doc.page_content[:500] + "..." if len(doc.page_content) > 500 else doc.page_content)
 
     # === Fallback logic ===
