@@ -33,8 +33,8 @@ st.markdown(
         margin-bottom: 10px;
     }
     .stButton button {
-        background-color: #d9534f;
-        color: white;
+        background-color: #DC143C;
+        color: black;
         font-weight: bold;
         padding: 0.5em 1.5em;
         border-radius: 8px;
@@ -48,7 +48,7 @@ st.markdown(
 with st.container():
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
-        if st.button("Clear Cache 🧹", help="This will reset chat history and comparison"):
+        if st.button("Clear Cache", help="This will reset chat history and comparison"):
             st.session_state.show_confirm_clear = True
 
 # Show confirmation popup
