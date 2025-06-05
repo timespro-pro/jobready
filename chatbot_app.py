@@ -7,6 +7,12 @@ from utils.llm_chain import get_combined_response
 from load_vectorstore_from_gcp import load_vectorstore_from_gcp
 import tempfile
 
+# LangChain imports for embeddings, text splitter, FAISS, etc.
+from langchain.embeddings.openai import OpenAIEmbeddings
+from langchain.vectorstores import FAISS
+from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.schema import BaseRetriever
+
 # ====== SECRETS & GCP CREDENTIALS ======
 openai_key = st.secrets["OPENAI_API_KEY"]
 gcp_credentials_dict = dict(st.secrets["GCP_SERVICE_ACCOUNT"])
@@ -50,7 +56,7 @@ def sanitize_url(url: str) -> str:
 
 folder_name = f"timespro_com_executive_education_{sanitize_url(selected_program)}"
 
-# ====== LOAD VECTORSTORE ======
+# ====== LOAD TIMESPRO VECTORSTORE ======
 with st.spinner("Loading TimesPro program details..."):
     try:
         vectorstore_path = f"{gcp_config['prefix']}/{folder_name}"
@@ -59,11 +65,11 @@ with st.spinner("Loading TimesPro program details..."):
             path=vectorstore_path,
             creds_dict=gcp_config["credentials"]
         )
-        retriever = vectorstore.as_retriever()
-        st.success("Vectorstore loaded successfully.")
+        timespro_retriever = vectorstore.as_retriever()
+        st.success("TimesPro vectorstore loaded successfully.")
     except Exception as e:
         st.error(f"Vectorstore loading failed: {e}")
-        retriever = None
+        timespro_retriever = None
 
 # ====== CONVERSATION MEMORY INIT ======
 if "memory" not in st.session_state:
@@ -102,7 +108,7 @@ if st.session_state.get("show_confirm_clear", False):
         with col_confirm:
             if st.button("Yes, clear it", key="confirm_clear"):
                 st.session_state.clear()
-                st.rerun()
+                st.experimental_rerun()
         with col_cancel:
             if st.button("Cancel", key="cancel_clear"):
                 st.session_state.show_confirm_clear = False
@@ -127,22 +133,78 @@ if compare_clicked:
             st.success("Here's the comparison:")
             st.write(response)
 
+# ====== COMBINED RETRIEVER CLASS ======
+class CombinedRetriever(BaseRetriever):
+    def __init__(self, retrievers):
+        self.retrievers = retrievers
+
+    def get_relevant_documents(self, query):
+        results = []
+        for retriever in self.retrievers:
+            results.extend(retriever.get_relevant_documents(query))
+        # Optionally, you can sort/filter results here if needed
+        return results
+
 # ====== QA CHATBOT SECTION ======
 st.subheader("💬 Ask a follow-up question about the TimesPro program")
 user_question = st.text_input("Enter your question here")
 
-if user_question and retriever:
+if user_question and timespro_retriever:
     with st.spinner("Answering your question using the knowledge base..."):
 
+        # Build vectorstore from PDF + competitor URLs dynamically if content present
+        additional_retrievers = []
+        embedding_model = OpenAIEmbeddings(openai_api_key=openai_key)
+        text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
+
+        # Prepare docs list from PDF and URLs
+        docs = []
+
+        if pdf_file:
+            # Load PDF text if not already loaded in this session
+            with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                tmp_pdf.write(pdf_file.read())
+                pdf_path = tmp_pdf.name
+            pdf_text = load_pdf(pdf_path)
+            if pdf_text.strip():
+                docs.append(pdf_text)
+
+        # Load competitor URLs content
+        if url_1 or url_2:
+            url_texts = load_url_content([url_1, url_2])
+            for txt in url_texts:
+                if txt.strip():
+                    docs.append(txt)
+
+        # If we have docs from PDF/URLs, create a vectorstore retriever for them
+        if docs:
+            chunks = []
+            for doc_text in docs:
+                chunks.extend(text_splitter.split_text(doc_text))
+
+            if chunks:
+                pdf_url_vectorstore = FAISS.from_texts(chunks, embedding_model)
+                additional_retrievers.append(pdf_url_vectorstore.as_retriever())
+
+        # Combine TimesPro retriever with additional retrievers (if any)
+        combined_retriever = (
+            CombinedRetriever([timespro_retriever] + additional_retrievers)
+            if additional_retrievers
+            else timespro_retriever
+        )
+
+        # Inject comparison text once into memory if available
         if st.session_state.comparison_output and not st.session_state.comparison_injected:
             st.session_state.memory.chat_memory.add_user_message(
-                "Here is a comparison of TimesPro and competitor programs:")
+                "Here is a comparison of TimesPro and competitor programs:"
+            )
             st.session_state.memory.chat_memory.add_ai_message(st.session_state.comparison_output)
             st.session_state.comparison_injected = True
 
+        # Build the ConversationalRetrievalChain with combined retriever
         qa_chain = ConversationalRetrievalChain.from_llm(
             llm=ChatOpenAI(model_name=model_choice, openai_api_key=openai_key),
-            retriever=retriever,
+            retriever=combined_retriever,
             memory=st.session_state.memory,
             return_source_documents=True,
         )
