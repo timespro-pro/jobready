@@ -22,56 +22,48 @@ gcp_config = {
 st.set_page_config(page_title="AI Sales Assistant", layout="centered")
 st.title("📚 AI Sales Assistant")
 
-# ====== CLEAR CACHE BUTTON - CLEANED UI & CONFIRMATION ======
-st.markdown("""
+# ====== CLEAR CACHE BUTTON ======
+st.markdown(
+    """
     <style>
-    .clear-btn-container {
+    .centered-button {
         display: flex;
-        justify-content: flex-start;
-        margin-top: -40px;
+        justify-content: center;
+        margin-top: -30px;
         margin-bottom: 10px;
     }
-    .clear-btn button {
-        background-color: #ff4b4b;
+    .stButton button {
+        background-color: #d9534f;
         color: white;
         font-weight: bold;
-        padding: 0.25rem 1rem;
-        border-radius: 0.4rem;
+        padding: 0.5em 1.5em;
+        border-radius: 8px;
         white-space: nowrap;
     }
     </style>
-""", unsafe_allow_html=True)
+    """,
+    unsafe_allow_html=True,
+)
 
-clear_btn_col, _ = st.columns([1, 9])
-with clear_btn_col:
-    with st.container():
-        if st.button("Clear Cache", help="Click to clear memory and chat history", key="clear_cache_btn"):
-            st.session_state.show_confirm = True
+with st.container():
+    col1, col2, col3 = st.columns([1, 2, 1])
+    with col2:
+        if st.button("Clear Cache 🧹", help="This will reset chat history and comparison"):
+            st.session_state.show_confirm_clear = True
 
-# ====== CONFIRMATION PROMPT ======
-if st.session_state.get("show_confirm", False):
-    confirm_box = st.empty()
-    with confirm_box.container():
-        st.warning("⚠️ Are you sure you want to clear memory and reset chat? This action cannot be undone.")
-        col1, col2 = st.columns([1, 1])
-        with col1:
-            if st.button("✅ Yes, Clear", key="confirm_clear_yes"):
-                st.session_state.memory = ConversationBufferMemory(
-                    memory_key="chat_history",
-                    input_key="question",
-                    output_key="answer",
-                    return_messages=True,
-                    k=7
-                )
-                st.session_state.comparison_output = ""
-                st.session_state.comparison_injected = False
-                st.session_state.show_confirm = False
-                confirm_box.empty()
+# Show confirmation popup
+if st.session_state.get("show_confirm_clear", False):
+    with st.expander("⚠️ Confirm Clear Cache", expanded=True):
+        st.warning("Are you sure you want to clear chat and comparison history?")
+        col_confirm, col_cancel = st.columns(2)
+        with col_confirm:
+            if st.button("Yes, clear it", key="confirm_clear"):
+                st.session_state.clear()
                 st.rerun()
-        with col2:
-            if st.button("❌ Cancel", key="confirm_clear_no"):
-                st.session_state.show_confirm = False
-                confirm_box.empty()
+        with col_cancel:
+            if st.button("Cancel", key="cancel_clear"):
+                st.session_state.show_confirm_clear = False
+
 
 
  
