@@ -108,24 +108,22 @@ st.markdown("### 💬 Ask a follow-up question about the TimesPro program")
 user_question = st.text_input("Enter your question here:")
 
 if user_question and retriever:
-    # ====== STRICT QA PROMPT TEMPLATE ======
     base_prompt = """
-You are a helpful assistant. Answer the user’s question ONLY using the provided context from the TimesPro program documentation.
-Do NOT use any prior knowledge or assumptions. If the answer is not found in the context, say “The document does not contain this information.”
+    You are a helpful assistant. Answer the user’s question ONLY using the provided context from the TimesPro program documentation.
+    Do NOT use any prior knowledge or assumptions. If the answer is not found in the context, say “The document does not contain this information.”
 
-Context:
-{context}
+    Context:
+    {context}
 
-Additional Notes (if any):
-{comparison_info}
+    Additional Notes (if any):
+    {comparison_info}
 
-Question:
-{question}
+    Question:
+    {question}
     """
 
-    # NOTE: Only 'question' and 'comparison_info' should be input variables
     full_prompt = PromptTemplate(
-        input_variables=["question", "comparison_info"],
+        input_variables=["context", "question", "comparison_info"],
         template=base_prompt
     )
 
@@ -135,7 +133,10 @@ Question:
         llm=llm,
         retriever=retriever,
         chain_type="stuff",
-        chain_type_kwargs={"prompt": full_prompt},
+        chain_type_kwargs={
+            "prompt": full_prompt,
+            "verbose": True
+        },
         return_source_documents=True
     )
 
@@ -149,14 +150,12 @@ Question:
     st.markdown("#### 💡 Answer:")
     st.write(response["result"])
 
-    # ==== Source Documents ====
     if response.get("source_documents"):
         st.markdown("#### 📄 Sources Used:")
         for i, doc in enumerate(response["source_documents"]):
             st.markdown(f"**Source {i+1}:** `{doc.metadata.get('source', 'Unknown')}`")
             st.code(doc.page_content[:500] + "..." if len(doc.page_content) > 500 else doc.page_content)
 
-    # ==== Fallback Logic ====
     if "The document does not contain this information" in response["result"]:
         st.markdown("🤖 Attempting fallback with LLM reasoning...")
 
@@ -173,14 +172,14 @@ Question:
         fallback_prompt = PromptTemplate(
             input_variables=["context", "question"],
             template="""
-You are an expert educational consultant. Based on the context below, try to answer the user’s question.
-If unsure, say you don’t know.
+            You are an expert educational consultant. Based on the context below, try to answer the user’s question.
+            If unsure, say you don’t know.
 
-Context:
-{context}
+            Context:
+            {context}
 
-Question:
-{question}
+            Question:
+            {question}
             """
         )
 
