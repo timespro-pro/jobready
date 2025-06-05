@@ -151,12 +151,17 @@ if user_question:
                     pdf_path = tmp_pdf.name
                 pdf_text = load_pdf(pdf_path)
 
-            url_contexts = load_url_content([url_1, url_2]) if url_1 or url_2 else {}
+            url_contexts = []
+            if url_1 or url_2:
+                url_contexts = load_url_content([url_1, url_2])
+
+            timespro_context = url_contexts[0] if len(url_contexts) > 0 else ""
+            competitor_context = url_contexts[1] if len(url_contexts) > 1 else ""
             comparison_context = st.session_state.comparison_output or ""
 
             # 2. Prepare custom context-injected prompt
             system_prompt = """You are an expert EdTech counselor. You must answer user queries based on the provided TimesPro course content, competitor details, and the PDF brochure if available.
-            
+
 Use the following context:
 
 --- TIMESPRO COURSE CONTENT ---
@@ -177,8 +182,8 @@ If you don't know something, say so honestly.
 
             # Fill in the prompt with available content
             formatted_prompt = system_prompt.format(
-                timespro_context=url_contexts.get(url_1, ""),
-                competitor_context=url_contexts.get(url_2, ""),
+                timespro_context=timespro_context,
+                competitor_context=competitor_context,
                 pdf_context=pdf_text,
                 comparison_context=comparison_context,
             )
@@ -196,7 +201,7 @@ If you don't know something, say so honestly.
                 memory=st.session_state.memory,
                 return_source_documents=True,
                 condense_question_prompt=None,
-                chain_type_kwargs={"prompt": None},  # we use full custom context
+                chain_type_kwargs={"prompt": None},  # using full custom context in system prompt
             )
 
             # 4. Inject the context into memory if not done
