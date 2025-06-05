@@ -1,7 +1,5 @@
 import streamlit as st
 import tempfile
-import os
-import json
 from PyPDF2 import PdfReader
 from langchain.chat_models import ChatOpenAI
 from langchain.embeddings.openai import OpenAIEmbeddings
@@ -10,10 +8,11 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain.chains import RetrievalQA, LLMChain
 from langchain.prompts import PromptTemplate
 from langchain.document_loaders import WebBaseLoader
+from langchain.docstore.document import Document
 from bs4 import BeautifulSoup
 import requests
 
-# === Session init ===
+# === Session State Init ===
 if "comparison_output" not in st.session_state:
     st.session_state.comparison_output = ""
 if "chat_history" not in st.session_state:
@@ -22,108 +21,105 @@ if "chat_history" not in st.session_state:
 # === Functions ===
 def load_pdf(file_path):
     reader = PdfReader(file_path)
-    return "\n".join([page.extract_text() for page in reader.pages if page.extract_text()])
+    texts = []
+    for i, page in enumerate(reader.pages):
+        content = page.extract_text()
+        if content:
+            texts.append(Document(page_content=content, metadata={"source": f"Page {i+1}"}))
+    return texts
 
-def create_vectorstore(text, embeddings_model):
+def create_vectorstore(docs, embeddings_model):
     splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
-    docs = splitter.create_documents([text])
-    return FAISS.from_documents(docs, embeddings_model)
+    split_docs = splitter.split_documents(docs)
+    return FAISS.from_documents(split_docs, embeddings_model)
 
 def load_url_content(urls):
-    combined_text = ""
-    for url in urls:
+    combined_docs = []
+    for i, url in enumerate(urls):
         try:
             loader = WebBaseLoader(url)
             docs = loader.load()
-            combined_text += "\n".join([doc.page_content for doc in docs])
+            for doc in docs:
+                doc.metadata["source"] = url
+            combined_docs.extend(docs)
         except Exception as e:
-            combined_text += f"\n[Error loading {url}: {e}]"
-    return combined_text
-
-def extract_text_from_html(url):
-    try:
-        html = requests.get(url, timeout=10).text
-        soup = BeautifulSoup(html, "html.parser")
-        return soup.get_text()
-    except:
-        return ""
+            combined_docs.append(Document(page_content=f"[Error loading {url}: {e}]", metadata={"source": url}))
+    return combined_docs
 
 # === UI ===
-st.title("📘 TimesPro PDF & Competitor Analyzer Chatbot")
-openai_key = st.text_input("🔑 Enter your OpenAI API Key", type="password")
-model_choice = st.selectbox("🤖 Select Model", ["gpt-3.5-turbo", "gpt-4"])
+st.title("📘 TimesPro: AI Sales Assistant (Internal Use Only)")
+openai_key = st.text_input("🔑 Enter OpenAI API Key", type="password")
+model_choice = st.selectbox("🤖 Model", ["gpt-3.5-turbo", "gpt-4"])
 pdf_file = st.file_uploader("📄 Upload TimesPro Course Brochure (PDF)", type=["pdf"])
-url_1 = st.text_input("🔗 Enter TimesPro Course Page URL")
-url_2 = st.text_input("🔗 Enter Competitor Course Page URL")
-compare_btn = st.button("🔍 Compare Course Info")
+url_1 = st.text_input("🔗 TimesPro Course Page URL")
+url_2 = st.text_input("🔗 Competitor Course Page URL")
+compare_btn = st.button("🔍 Compare")
 
-# === Comparison logic ===
+# === Load Inputs ===
+pdf_docs, url_docs = [], []
+if pdf_file:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+        tmp.write(pdf_file.read())
+        pdf_docs = load_pdf(tmp.name)
+
+if url_1 or url_2:
+    url_docs = load_url_content([url_1, url_2])
+
+# === Comparison ===
 if compare_btn and openai_key:
-    raw_text = ""
-    if pdf_file:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-            tmp.write(pdf_file.read())
-            tmp_path = tmp.name
-        raw_text = load_pdf(tmp_path)
-
-    url_text = load_url_content([url_1, url_2])
     llm = ChatOpenAI(model_name=model_choice, openai_api_key=openai_key)
+
     compare_prompt = PromptTemplate(
         input_variables=["pdf", "urls"],
         template="""
-You are an educational content analyst. Compare the course described in the brochure (below)
-with the two online course pages.
+Compare the brochure content with the online pages. Highlight differences and similarities in:
+- Fees
+- Syllabus
+- Duration
+- Placement support
+- EMI/loan options
+- Course highlights
 
-Brochure Content:
+Brochure:
 {pdf}
 
-Online Page Content:
+Online Pages:
 {urls}
-
-Compare details such as fees, syllabus, duration, placement support, loan/EMI options, and course highlights.
-Summarize the similarities and differences clearly.
-        """
+"""
     )
+
     compare_chain = LLMChain(llm=llm, prompt=compare_prompt)
-    comparison_result = compare_chain.invoke({"pdf": raw_text, "urls": url_text})
-    st.session_state.comparison_output = comparison_result["text"]
+    pdf_text = "\n".join([doc.page_content for doc in pdf_docs])
+    url_text = "\n".join([doc.page_content for doc in url_docs])
+    result = compare_chain.invoke({"pdf": pdf_text, "urls": url_text})
+    st.session_state.comparison_output = result["text"]
 
 st.markdown("### 🧾 Comparison Summary")
-st.info(st.session_state.comparison_output or "No comparison done yet.")
+st.info(st.session_state.comparison_output or "No comparison yet.")
 
-# === Vectorstore for PDF ===
-retriever = None
-if pdf_file and openai_key:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-        tmp.write(pdf_file.read())
-        tmp_path = tmp.name
-    pdf_text = load_pdf(tmp_path)
+# === Chat Interface ===
+user_question = st.text_input("💬 Ask about the TimesPro course:")
+
+if user_question and pdf_docs and openai_key:
     embeddings = OpenAIEmbeddings(openai_api_key=openai_key)
-    vectorstore = create_vectorstore(pdf_text, embeddings)
+    vectorstore = create_vectorstore(pdf_docs, embeddings)
     retriever = vectorstore.as_retriever()
 
-# === Chat interface ===
-user_question = st.text_input("💬 Ask your question about the TimesPro program:")
-
-if user_question and retriever:
-
-    # === Custom prompt with context and comparison ===
-    base_prompt = """
-You are a helpful assistant. Answer the user’s question ONLY using the provided context from the TimesPro program documentation.
-Do NOT use any prior knowledge or assumptions. If the answer is not found in the context, say “The document does not contain this information.”
+    prompt_template = PromptTemplate(
+        input_variables=["context", "question", "comparison_info"],
+        template="""
+Use only the provided context to answer the user’s question.
+If not found, say: "The document does not contain this information."
 
 Context:
 {context}
 
-Additional Notes (if any):
+Comparison Insights:
 {comparison_info}
 
 Question:
 {question}
-    """
-    full_prompt = PromptTemplate(
-        input_variables=["context", "question", "comparison_info"],
-        template=base_prompt
+"""
     )
 
     llm = ChatOpenAI(model_name=model_choice, openai_api_key=openai_key)
@@ -132,54 +128,57 @@ Question:
         llm=llm,
         retriever=retriever,
         chain_type="stuff",
-        chain_type_kwargs={"prompt": full_prompt},
+        chain_type_kwargs={"prompt": prompt_template},
         return_source_documents=True
     )
 
-    comparison_context = st.session_state.comparison_output or "N/A"
-
-    response = qa_chain.invoke({
+    result = qa_chain.invoke({
         "question": user_question,
-        "comparison_info": comparison_context
+        "comparison_info": st.session_state.comparison_output
     })
 
-    answer = response["result"]
+    answer = result["result"]
 
     st.markdown("#### 💡 Answer:")
     st.write(answer)
 
-    # === Source document display ===
-    if response.get("source_documents"):
-        st.markdown("#### 📄 Sources Used:")
-        for i, doc in enumerate(response["source_documents"]):
+    # === Source Display ===
+    if result.get("source_documents"):
+        st.markdown("#### 📄 Sources:")
+        for i, doc in enumerate(result["source_documents"]):
             st.markdown(f"**Source {i+1}:** `{doc.metadata.get('source', 'unknown')}`")
             st.code(doc.page_content[:500] + "..." if len(doc.page_content) > 500 else doc.page_content)
 
-    # === Fallback logic ===
+    # === Fallback ===
     if "The document does not contain this information" in answer:
-        st.markdown("🤖 Attempting fallback with LLM reasoning...")
+        st.markdown("🤖 Using fallback LLM...")
 
-        url_text = load_url_content([url_1, url_2])
-        fallback_context = "\n\n".join([st.session_state.comparison_output or "", pdf_text, url_text])
+        full_context = "\n\n".join([
+            st.session_state.comparison_output,
+            "\n".join([doc.page_content for doc in pdf_docs]),
+            "\n".join([doc.page_content for doc in url_docs])
+        ])
 
         fallback_prompt = PromptTemplate(
             input_variables=["context", "question"],
             template="""
-You are an expert educational consultant. Based on the context below, try to answer the user’s question.
-If unsure, say you don’t know.
+You are a smart educational consultant.
+Use the following context to answer the question.
+If the information isn't available, say so clearly.
 
 Context:
 {context}
 
 Question:
 {question}
-            """
+"""
         )
+
         fallback_chain = LLMChain(llm=llm, prompt=fallback_prompt)
-        fallback_answer = fallback_chain.invoke({
-            "context": fallback_context,
+        fallback_response = fallback_chain.invoke({
+            "context": full_context,
             "question": user_question
         })
 
-        st.markdown("#### 🧠 Fallback Answer (LLM-based):")
-        st.write(fallback_answer["text"])
+        st.markdown("#### 🧠 Fallback Answer:")
+        st.write(fallback_response["text"])
