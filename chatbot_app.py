@@ -82,7 +82,7 @@ if "comparison_output" not in st.session_state:
 if "comparison_injected" not in st.session_state:
     st.session_state.comparison_injected = False
 
-# ====== COMPARISON & CLEAR CACHE BUTTONS SIDE BY SIDE ======
+# ====== COMPARISON & CLEAR CACHE BUTTONS ======
 col_compare, col_clear = st.columns([3, 1])
 
 with col_compare:
@@ -92,7 +92,6 @@ with col_compare:
 with col_clear:
     clear_clicked = st.button("Clear Cache 🧹", help="This will reset chat history and comparison")
 
-# ====== CLEAR CACHE CONFIRMATION ======
 if clear_clicked:
     st.session_state.show_confirm_clear = True
 
@@ -108,7 +107,7 @@ if st.session_state.get("show_confirm_clear", False):
             if st.button("Cancel", key="cancel_clear"):
                 st.session_state.show_confirm_clear = False
 
-# ====== HANDLE COMPARISON LOGIC ======
+# ====== COMPARISON LOGIC ======
 if compare_clicked:
     if selected_program == "-- Select a program --":
         st.warning("Please select a valid TimesPro program from the dropdown.")
@@ -128,21 +127,20 @@ if compare_clicked:
             st.session_state.comparison_output = response
             st.session_state.comparison_injected = False
 
-# ====== DISPLAY COMPARISON OUTPUT IF EXISTS ======
+# ====== DISPLAY COMPARISON ======
 if st.session_state.get("comparison_output"):
     st.success("Here's the comparison:")
     st.write(st.session_state.comparison_output)
 
-# ====== QA CHATBOT SECTION ======
-st.subheader("💬 Ask a follow-up question about the TimesPro program")
-user_question = st.text_input("Enter your question here")
+# ====== CHATBOT SECTION ======
+st.subheader("💬 Chat with AI Sales Assistant")
+user_prompt = st.text_input("Enter your message")
 
-if user_question:
+if user_prompt:
     if not retriever:
         st.warning("Knowledge base is not available. Please select a program to load its data.")
     else:
-        with st.spinner("Answering your question using all available information..."):
-
+        with st.spinner("Processing your request..."):
             pdf_text = ""
             if pdf_file:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
@@ -155,10 +153,11 @@ if user_question:
             competitor_context = url_contexts.get(url_2, "")
             comparison_context = st.session_state.comparison_output or ""
 
-            system_prompt = """You are an expert EdTech counselor. You must answer user queries based on the provided TimesPro course content, competitor details, and the PDF brochure if available.
+            system_prompt = f"""
+You are an expert EdTech counselor.
+You must answer user queries based on the provided TimesPro course content, competitor details, and the PDF brochure if available.
 
 Use the following context:
-
 --- TIMESPRO COURSE CONTENT ---
 {timespro_context}
 
@@ -166,7 +165,7 @@ Use the following context:
 {competitor_context}
 
 --- PDF BROCHURE CONTENT ---
-{pdf_context}
+{pdf_text}
 
 --- COMPARISON OUTPUT ---
 {comparison_context}
@@ -174,13 +173,6 @@ Use the following context:
 Only answer using the above context. Be accurate, neutral, and helpful.
 If you don't know something, say so honestly.
 """
-
-            formatted_prompt = system_prompt.format(
-                timespro_context=timespro_context,
-                competitor_context=competitor_context,
-                pdf_context=pdf_text,
-                comparison_context=comparison_context,
-            )
 
             custom_llm = ChatOpenAI(
                 model_name=model_choice,
@@ -197,9 +189,9 @@ If you don't know something, say so honestly.
 
             if not st.session_state.comparison_injected:
                 st.session_state.memory.chat_memory.add_user_message("System Prompt with Full Context")
-                st.session_state.memory.chat_memory.add_ai_message(formatted_prompt)
+                st.session_state.memory.chat_memory.add_ai_message(system_prompt)
                 st.session_state.comparison_injected = True
 
-            full_question = formatted_prompt + "\n\nUser Question: " + user_question
-            result = qa_chain.invoke({"question": full_question})
+            full_prompt = system_prompt + "\n\nUser Prompt: " + user_prompt
+            result = qa_chain.invoke({"question": full_prompt})
             st.write(f"💬 **Answer:** {result['answer']}")
