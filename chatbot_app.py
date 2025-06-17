@@ -320,29 +320,46 @@ if "comparison_output" not in st.session_state:
 if "comparison_injected" not in st.session_state:
     st.session_state.comparison_injected = False
 
-# ====== COMPARISON & CLEAR CACHE BUTTONS ======
-col_compare, col_clear = st.columns([3, 1])
+# ====== ACTION BUTTONS (Compare • Print • Clear) ======
+col_compare, col_print, col_clear = st.columns([2, 2, 1])
 
 with col_compare:
     compare_disabled = selected_program == "-- Select a program --"
-    compare_clicked = st.button("Compare", disabled=compare_disabled)
+    compare_clicked = st.button("Compare (Generate Brief)", disabled=compare_disabled)
+
+with col_print:
+    print_clicked = st.button("Print Extracted Data")
 
 with col_clear:
-    clear_clicked = st.button("Clear Cache 🧹", help="Reset chat + comparison")
+    clear_clicked = st.button("Clear Cache 🧹")
 
+# ---- Clear cache ----
 if clear_clicked:
     st.session_state.clear()
     st.rerun()
 
+# ---- Print extracted data ----
+if print_clicked:
+    st.subheader("📄 TimesPro Data Preview")
+    if retriever:
+        st.write(_preview_vectorstore(retriever))
+    else:
+        tp_scrape = load_url_content([url_1]).get(url_1, "No TimesPro data.")
+        st.write(tp_scrape[:3000])
+
+    st.subheader("📄 Competitor Data Preview")
+    comp_scrape = load_url_content([url_2]).get(url_2, "No competitor data.")
+    st.write(comp_scrape[:3000])
+
 # ====== COMPARISON LOGIC ======
 if compare_clicked:
     if selected_program == "-- Select a program --":
-        st.warning("Please select a valid TimesPro program from the dropdown.")
+        st.warning("Please select a valid TimesPro program.")
     elif not (pdf_file or url_1 or url_2):
-        st.warning("Please upload a PDF or enter at least one URL (TimesPro and/or competitor).")
+        st.warning("Please upload a PDF or enter at least one URL.")
     else:
         with st.spinner("Generating full sales‑enablement brief …"):
-            # 1️⃣  Extract PDF (optional)
+            # 1️⃣  PDF text
             pdf_text = ""
             if pdf_file:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
@@ -350,11 +367,11 @@ if compare_clicked:
                     pdf_path = tmp_pdf.name
                 pdf_text = load_pdf(pdf_path)
 
-            # 2️⃣  Extract URL contents
-            urls_to_fetch = [u for u in [url_1, url_2] if u]
+            # 2️⃣  URL text
+            urls_to_fetch = [u for u in (url_1, url_2) if u]
             url_texts = load_url_content(urls_to_fetch) if urls_to_fetch else {}
 
-            # 3️⃣  Call LLM to build the brief (STRICT prompt lives in utils/llm_chain.py)
+            # 3️⃣  Build brief
             brief_output = get_combined_response(
                 pdf_text,
                 url_texts,
@@ -362,20 +379,14 @@ if compare_clicked:
                 competitor_url=url_2 or "N/A",
                 model_choice=model_choice,
             )
-
-            # 4️⃣  Save + show
             st.session_state.comparison_output = brief_output
-            st.session_state.comparison_injected = False  # reset injection for chat
+            st.session_state.comparison_injected = False
 
-# ====== DISPLAY COMPARISON ======
+# ====== DISPLAY COMPARISON (single, no duplicates) ======
 if st.session_state.comparison_output:
-    st.success("### 📝 Sales‑Enablement Brief (Auto‑generated)")
+    st.success("### 📝 Sales‑Enablement Brief (Auto‑generated)")
     st.write(st.session_state.comparison_output)
     
-if st.session_state.comparison_output:
-    st.success("### 📝 Sales‑Enablement Brief")
-    st.write(st.session_state.comparison_output)
-
 # ====== CHATBOT SECTION ======
 st.subheader("💬 Ask a follow‑up question")
 user_prompt = st.text_input("Enter your question")
