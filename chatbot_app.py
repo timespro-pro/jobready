@@ -4,7 +4,7 @@ from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from utils.loaders import load_pdf, load_url_content
 from utils.llm_chain import get_combined_response
-from load_vectorstore_from_gcp import import streamlit as st
+from load_vectorstore_from_gcp import streamlit as st
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
