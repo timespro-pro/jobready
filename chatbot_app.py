@@ -100,10 +100,10 @@ if compare_clicked:
     if selected_program == "-- Select a program --":
         st.warning("Please select a valid TimesPro program from the dropdown.")
     elif not (pdf_file or url_1 or url_2):
-        st.warning("Please upload a PDF or enter at least one URL.")
+        st.warning("Please upload a PDF or enter at least one URL (TimesPro and/or competitor).")
     else:
-        with st.spinner("Generating sales‑enablement brief ..."):
-            # 1️⃣  Extract PDF
+        with st.spinner("Generating full sales‑enablement brief …"):
+            # 1️⃣  Extract PDF (optional)
             pdf_text = ""
             if pdf_file:
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
@@ -111,21 +111,28 @@ if compare_clicked:
                     pdf_path = tmp_pdf.name
                 pdf_text = load_pdf(pdf_path)
 
-            # 2️⃣  Extract URLs ⇒ dict[ url -> content ]
-            url_texts = load_url_content([url_1, url_2]) or {}
+            # 2️⃣  Extract URL contents
+            urls_to_fetch = [u for u in [url_1, url_2] if u]
+            url_texts = load_url_content(urls_to_fetch) if urls_to_fetch else {}
 
-            # 3️⃣  NEW call signature with TimesPro + Competitor URLs
-            response = get_combined_response(
+            # 3️⃣  Call LLM to build the brief (STRICT prompt lives in utils/llm_chain.py)
+            brief_output = get_combined_response(
                 pdf_text,
                 url_texts,
-                timespro_url=url_1,
-                competitor_url=url_2,
+                timespro_url=url_1 or "N/A",
+                competitor_url=url_2 or "N/A",
                 model_choice=model_choice,
             )
-            st.session_state.comparison_output = response
-            st.session_state.comparison_injected = False
+
+            # 4️⃣  Save + show
+            st.session_state.comparison_output = brief_output
+            st.session_state.comparison_injected = False  # reset injection for chat
 
 # ====== DISPLAY COMPARISON ======
+if st.session_state.comparison_output:
+    st.success("### 📝 Sales‑Enablement Brief (Auto‑generated)")
+    st.write(st.session_state.comparison_output)
+ ======
 if st.session_state.comparison_output:
     st.success("### 📝 Sales‑Enablement Brief")
     st.write(st.session_state.comparison_output)
