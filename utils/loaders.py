@@ -13,16 +13,14 @@ def load_pdf(pdf_path):
     return text
 
 def load_url_content(urls: list) -> dict:
-    from bs4 import BeautifulSoup
-    import requests
-
     url_contexts = {}
+    headers = {"User-Agent": "Mozilla/5.0"}   # helps avoid some 403s
     for url in urls:
         try:
-            response = requests.get(url, timeout=10)
-            soup = BeautifulSoup(response.text, "html.parser")
-            text = soup.get_text(separator=" ", strip=True)
-            url_contexts[url] = text[:3000]  # truncate to 3000 chars if needed
+            resp = requests.get(url, headers=headers, timeout=15)
+            soup = BeautifulSoup(resp.text, "html.parser")
+            # NO TRUNCATION  – grab full visible text
+            url_contexts[url] = soup.get_text(separator=" ", strip=True)
         except Exception as e:
             url_contexts[url] = f"Error fetching URL content: {e}"
     return url_contexts
