@@ -10,7 +10,7 @@ import tempfile
 # ─────────────────────────────────────────────
 # Helper: preview a few docs from the vectorstore
 # ─────────────────────────────────────────────
-def _preview_vectorstore(retriever, n_docs: int = 3, char_limit: int = 3000) -> str:
+def _preview_vectorstore(retriever, n_docs: int = 10, char_limit: int = 20000) -> str:
     """Return first n_docs' page_content (truncated) from vectorstore, if possible."""
     try:
         raw_docs = list(retriever.vectorstore.docstore._dict.values())[:n_docs]
@@ -73,7 +73,7 @@ if url_1:
                 path=vectorstore_path,
                 creds_dict=gcp_config["credentials"],
             )
-            retriever = vectorstore.as_retriever()
+            retriever = vectorstore.as_retriever(search_kwargs={"k": 50, "fetch_k": 100})
             st.success("Vectorstore loaded successfully ✔️")
         except Exception as e:
             st.error(f"Vectorstore loading failed: {e}")
