@@ -14,7 +14,7 @@ gcp_credentials_dict = dict(st.secrets["GCP_SERVICE_ACCOUNT"])
 gcp_config = {
     "bucket_name": "test_bucket_brian",
     "prefix": "vectorstores",
-    "credentials": gcp_credentials_dict
+    "credentials": gcp_credentials_dict,
 }
 
 # ====== PAGE CONFIG ======
@@ -25,7 +25,7 @@ st.title("📚 AI Sales Assistant")
 model_choice = st.selectbox(
     "Choose a model",
     ["gpt-3.5-turbo", "gpt-4", "gpt-4-1106-preview", "gpt-4o"],
-    index=0
+    index=0,
 )
 
 # ====== INPUTS ======
@@ -43,7 +43,7 @@ program_options = [
 
 selected_program = st.selectbox("Select TimesPro Program URL", program_options, index=0)
 url_1 = selected_program if selected_program != "-- Select a program --" else None
-url_2 = st.text_input("Input Competitors Program URL")
+url_2 = st.text_input("Input Competitor Program URL")
 
 # ====== SANITIZE URL ======
 def sanitize_url(url: str) -> str:
@@ -53,13 +53,13 @@ def sanitize_url(url: str) -> str:
 retriever = None
 if url_1:
     folder_name = f"timespro_com_executive_education_{sanitize_url(url_1)}"
-    with st.spinner("Loading TimesPro program details from Vectorstore ..."):
+    with st.spinner("Loading TimesPro program details ..."):
         try:
             vectorstore_path = f"{gcp_config['prefix']}/{folder_name}"
             vectorstore = load_vectorstore_from_gcp(
                 bucket_name=gcp_config["bucket_name"],
                 path=vectorstore_path,
-                creds_dict=gcp_config["credentials"]
+                creds_dict=gcp_config["credentials"],
             )
             retriever = vectorstore.as_retriever()
             st.success("Vectorstore loaded successfully ✔️")
@@ -73,19 +73,13 @@ if "memory" not in st.session_state:
         input_key="question",
         output_key="answer",
         return_messages=True,
-        k=7
+        k=7,
     )
 
-state_defaults = {
-    "comparison_output": "",
-    "comparison_injected": False,
-    "timespro_context": "",
-    "competitor_context": "",
-    "pdf_text": ""
-}
-for k, v in state_defaults.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+if "comparison_output" not in st.session_state:
+    st.session_state.comparison_output = ""
+if "comparison_injected" not in st.session_state:
+    st.session_state.comparison_injected = False
 
 # ====== COMPARISON & CLEAR CACHE BUTTONS ======
 col_compare, col_clear = st.columns([3, 1])
@@ -95,92 +89,89 @@ with col_compare:
     compare_clicked = st.button("Compare", disabled=compare_disabled)
 
 with col_clear:
-    clear_clicked = st.button("Clear Cache 🧹", help="This will reset chat, comparison, and cached contexts")
+    clear_clicked = st.button("Clear Cache 🧹", help="Reset chat + comparison")
 
 if clear_clicked:
     st.session_state.clear()
     st.rerun()
 
-# ====== HELPERS TO CACHE CONTEXTS LOCALLY (ONE‑OFF) ======
-
-def ensure_timespro_context():
-    if url_1 and not st.session_state.timespro_context:
-        st.session_state.timespro_context = load_url_content([url_1]).get(url_1, "")
-
-def ensure_competitor_context():
-    if url_2 and not st.session_state.competitor_context:
-        st.session_state.competitor_context = load_url_content([url_2]).get(url_2, "")
-
-def ensure_pdf_text():
-    if pdf_file and not st.session_state.pdf_text:
-        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-            tmp_pdf.write(pdf_file.read())
-            pdf_path = tmp_pdf.name
-        pdf_text = load_pdf(pdf_path)
-        st.session_state.pdf_text = pdf_text if pdf_text.strip() else "No content extracted from the uploaded PDF."
-
 # ====== COMPARISON LOGIC ======
 if compare_clicked:
-    if not (pdf_file or url_1 or url_2):
+    if selected_program == "-- Select a program --":
+        st.warning("Please select a valid TimesPro program from the dropdown.")
+    elif not (pdf_file or url_1 or url_2):
         st.warning("Please upload a PDF or enter at least one URL.")
     else:
-        with st.spinner("Comparing TimesPro program with competitor ..."):
-            # Ensure all contexts are loaded once
-            ensure_pdf_text()
-            ensure_timespro_context()
-            ensure_competitor_context()
+        with st.spinner("Generating sales‑enablement brief ..."):
+            # 1️⃣  Extract PDF
+            pdf_text = ""
+            if pdf_file:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                    tmp_pdf.write(pdf_file.read())
+                    pdf_path = tmp_pdf.name
+                pdf_text = load_pdf(pdf_path)
 
+            # 2️⃣  Extract URLs ⇒ dict[ url -> content ]
+            url_texts = load_url_content([url_1, url_2]) or {}
+
+            # 3️⃣  NEW call signature with TimesPro + Competitor URLs
             response = get_combined_response(
-                st.session_state.pdf_text,
-                {url_1: st.session_state.timespro_context, url_2: st.session_state.competitor_context},
+                pdf_text,
+                url_texts,
+                timespro_url=url_1,
+                competitor_url=url_2,
                 model_choice=model_choice,
             )
             st.session_state.comparison_output = response
-            st.session_state.comparison_injected = False  # reset prompt injection
+            st.session_state.comparison_injected = False
 
 # ====== DISPLAY COMPARISON ======
 if st.session_state.comparison_output:
-    st.success("### 📝 Comparison Result")
+    st.success("### 📝 Sales‑Enablement Brief")
     st.write(st.session_state.comparison_output)
 
 # ====== CHATBOT SECTION ======
-st.subheader("💬 Chat with AI Sales Assistant")
-user_prompt = st.text_input("Enter your message")
+st.subheader("💬 Ask a follow‑up question")
+user_prompt = st.text_input("Enter your question")
 
 if user_prompt:
     if not retriever:
         st.warning("Knowledge base is not available. Please select a program to load its data.")
     else:
-        with st.spinner("Processing your request ..."):
-            # Make sure contexts are cached
-            ensure_pdf_text()
-            ensure_timespro_context()
-            ensure_competitor_context()
+        with st.spinner("Answering ..."):
+            pdf_text = ""
+            if pdf_file:
+                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
+                    tmp_pdf.write(pdf_file.read())
+                    pdf_path = tmp_pdf.name
+                pdf_text = load_pdf(pdf_path)
 
-            comparison_context = st.session_state.comparison_output or "No comparison data available."
+            url_contexts = load_url_content([url_1, url_2]) or {}
+            timespro_context = url_contexts.get(url_1, "")
+            competitor_context = url_contexts.get(url_2, "")
+            comparison_context = st.session_state.comparison_output or ""
 
             system_prompt = f"""
 You are an expert EdTech counselor.
-Answer user queries using ONLY the provided context. Be accurate, neutral, and helpful. If you don't know, say so honestly.
+Answer user queries using ONLY the context below. Be neutral, concise and truthful. If you don't know, say so honestly.
 
 --- TIMESPRO DATA ---
-{st.session_state.timespro_context or 'No data extracted from TimesPro URL.'}
+{timespro_context}
 
 --- COMPETITOR DATA ---
-{st.session_state.competitor_context or 'No data extracted from competitor URL.'}
+{competitor_context}
 
 --- PDF DATA ---
-{st.session_state.pdf_text or 'No content extracted from the uploaded PDF.'}
+{pdf_text}
 
---- COMPARISON RESULT ---
+--- SALES‑ENABLEMENT BRIEF ---
 {comparison_context}
 """
 
-            # Initialise LLM & QA Chain
             custom_llm = ChatOpenAI(
                 model_name=model_choice,
                 openai_api_key=openai_key,
-                temperature=0
+                temperature=0,
             )
 
             qa_chain = ConversationalRetrievalChain.from_llm(
@@ -190,17 +181,10 @@ Answer user queries using ONLY the provided context. Be accurate, neutral, and h
                 return_source_documents=True,
             )
 
-            # Inject system prompt once at start of conversation
             if not st.session_state.comparison_injected:
-                st.session_state.memory.chat_memory.add_user_message("SYSTEM")
+                st.session_state.memory.chat_memory.add_user_message("SYSTEM CONTEXT")
                 st.session_state.memory.chat_memory.add_ai_message(system_prompt)
                 st.session_state.comparison_injected = True
-
-            # DEBUG SIZES
-            st.write(f"TIMESPRO CONTEXT LENGTH: {len(st.session_state.timespro_context)}")
-            st.write(f"COMPETITOR CONTEXT LENGTH: {len(st.session_state.competitor_context)}")
-            st.write(f"PDF TEXT LENGTH: {len(st.session_state.pdf_text)}")
-            st.write(f"COMPARISON LENGTH: {len(comparison_context)}")
 
             result = qa_chain.invoke({"question": user_prompt})
             st.write(f"💬 **Answer:** {result['answer']}")
