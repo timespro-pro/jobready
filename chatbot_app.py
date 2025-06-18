@@ -2,22 +2,21 @@ import streamlit as st
 from langchain.chat_models import ChatOpenAI
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
-from utils.loaders import load_pdf, load_url_content
+from utils.loaders import load_url_content
 from utils.llm_chain import get_combined_response
 from load_vectorstore_from_gcp import load_vectorstore_from_gcp
 import tempfile
 
 # ─────────────────────────────────────────────
-# Helper: preview a few docs from the vectorstore
+# Helper: preview docs inside the TimesPro vectorstore
 # ─────────────────────────────────────────────
-def _preview_vectorstore(retriever, n_docs: int = 10, char_limit: int = 20000) -> str:
-    """Return first n_docs' page_content (truncated) from vectorstore, if possible."""
+def _preview_vectorstore(retriever, n_docs=5, char_limit=5000):
     try:
-        raw_docs = list(retriever.vectorstore.docstore._dict.values())[:n_docs]
-        joined = "\n\n--- DOC SPLIT ---\n\n".join(d.page_content for d in raw_docs)
+        docs = list(retriever.vectorstore.docstore._dict.values())[:n_docs]
+        joined = "\n\n--- DOC SPLIT ---\n\n".join(d.page_content for d in docs)
         return joined[:char_limit]
     except Exception:
-        return "⚠️ Could not preview documents from vectorstore."
+        return "⚠️ Could not preview vectorstore content."
 
 # ====== SECRETS & GCP CREDENTIALS ======
 openai_key = st.secrets["OPENAI_API_KEY"]
@@ -33,17 +32,15 @@ gcp_config = {
 st.set_page_config(page_title="AI Sales Assistant", layout="centered")
 st.title("📚 AI Sales Assistant")
 
-# ====== MODEL CHOICE ======
-model_choice = st.selectbox(
-    "Choose a model",
-    ["gpt-3.5-turbo", "gpt-4", "gpt-4-1106-preview", "gpt-4o"],
-    index=0,
-)
+# ====== LLM MODEL (fixed to gpt‑4o) ======
+model_choice = "gpt-4o"  # default model
+# (model dropdown removed)
 
 # ====== INPUTS ======
-pdf_file = st.file_uploader("Upload a PDF file", type="pdf")
+# — PDF upload removed —
+# pdf_file = st.file_uploader("Upload a PDF file", type="pdf")
 
-program_options = [
+timespro_urls = [
     "-- Select a program --",
     "https://timespro.com/executive-education/iim-calcutta-senior-management-programme",
     "https://timespro.com/executive-education/iim-kashipur-senior-management-programme",
@@ -53,186 +50,152 @@ program_options = [
     "https://timespro.com/executive-education/iim-calcutta-lead-an-advanced-management-programme",
 ]
 
-selected_program = st.selectbox("Select TimesPro Program URL", program_options, index=0)
-url_1 = selected_program if selected_program != "-- Select a program --" else None
-url_2 = st.text_input("Input Competitor Program URL")
+# Display only slug after /executive-education/
+def slug(url):
+    return url.split("/executive-education/")[1] if "/executive-education/" in url else url
 
-# ====== SANITIZE URL ======
-def sanitize_url(url: str) -> str:
-    return url.strip("/").split("/")[-1].replace("-", "_")
+display_options = [("-- Select a program --")] + [slug(u) for u in timespro_urls[1:]]
+sel_display = st.selectbox("Select TimesPro Program", display_options, index=0)
+url_1 = None if sel_display == "-- Select a program --" else timespro_urls[display_options.index(sel_display)]
+url_2 = st.text_input("Input Competitor Program URL")
 
 # ====== LOAD VECTORSTORE ======
 retriever = None
 if url_1:
-    folder_name = f"timespro_com_executive_education_{sanitize_url(url_1)}"
-    with st.spinner("Loading TimesPro program details ..."):
+    folder = f"timespro_com_executive_education_{slug(url_1)}"
+    with st.spinner("Loading TimesPro vectorstore …"):
         try:
-            vectorstore_path = f"{gcp_config['prefix']}/{folder_name}"
+            vect_path = f"{gcp_config['prefix']}/{folder}"
             vectorstore = load_vectorstore_from_gcp(
                 bucket_name=gcp_config["bucket_name"],
-                path=vectorstore_path,
+                path=vect_path,
                 creds_dict=gcp_config["credentials"],
             )
             retriever = vectorstore.as_retriever(search_kwargs={"k": 50, "fetch_k": 100})
-            st.success("Vectorstore loaded successfully ✔️")
+            st.success("Vectorstore loaded ✔️")
         except Exception as e:
-            st.error(f"Vectorstore loading failed: {e}")
+            st.error(f"Vectorstore load failed: {e}")
 
-# ====== SESSION STATE INIT ======
+# ====== SESSION STATE ======
 if "memory" not in st.session_state:
     st.session_state.memory = ConversationBufferMemory(
-        memory_key="chat_history",
-        input_key="question",
-        output_key="answer",
-        return_messages=True,
-        k=7,
+        memory_key="chat_history", input_key="question", output_key="answer",
+        return_messages=True, k=7
     )
+st.session_state.setdefault("comparison_output", "")
+st.session_state.setdefault("comparison_injected", False)
 
-state_defaults = {
-    "comparison_output": "",
-    "comparison_injected": False,
-}
-for k, v in state_defaults.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+# ====== ACTION BUTTONS ======
+col_cmp, col_prn, col_clr = st.columns([2, 2, 1])
+with col_cmp:
+    cmp_clicked = st.button("Compare (Generate Brief)", disabled=sel_display == "-- Select a program --")
+with col_prn:
+    prn_clicked = st.button("Print Extracted Data")
+with col_clr:
+    if st.button("Clear Cache 🧹"):
+        st.session_state.clear(); st.rerun()
 
-# ====== ACTION BUTTONS (Compare • Print • Clear) ======
-col_compare, col_print, col_clear = st.columns([2, 2, 1])
-
-with col_compare:
-    compare_disabled = selected_program == "-- Select a program --"
-    compare_clicked = st.button("Compare (Generate Brief)", disabled=compare_disabled)
-
-with col_print:
-    print_clicked = st.button("Print Extracted Data")
-
-with col_clear:
-    clear_clicked = st.button("Clear Cache 🧹")
-
-# ---- Clear cache ----
-if clear_clicked:
-    st.session_state.clear()
-    st.rerun()
-
-# ---- Print extracted data ----
-if print_clicked:
-    st.subheader("📄 TimesPro Data Preview")
-    if retriever:
-        st.write(_preview_vectorstore(retriever))
-    else:
-        tp_scrape = load_url_content([url_1]).get(url_1, "No TimesPro data.")
-        st.write(tp_scrape[:3000])
-
-    st.subheader("📄 Competitor Data Preview")
-    comp_scrape = load_url_content([url_2]).get(url_2, "No competitor data.")
-    st.write(comp_scrape[:3000])
+# ====== PRINT EXTRACTED DATA ======
+if prn_clicked:
+    st.subheader("📄 TimesPro Data Preview")
+    st.write(_preview_vectorstore(retriever) if retriever else "No vectorstore loaded.")
+    st.subheader("📄 Competitor Data Preview")
+    comp_txt = load_url_content([url_2]).get(url_2, "No competitor data.") if url_2 else "No competitor URL."
+    st.write(comp_txt[:5000])
 
 # ====== COMPARISON LOGIC ======
-if compare_clicked:
-    if selected_program == "-- Select a program --":
-        st.warning("Please select a valid TimesPro program.")
-    elif not (pdf_file or url_1 or url_2):
-        st.warning("Please upload a PDF or enter at least one URL.")
+if cmp_clicked:
+    if not url_2:
+        st.warning("Please enter a competitor program URL.")
     else:
-        with st.spinner("Generating full sales‑enablement brief …"):
-            # 1️⃣  PDF text
-            pdf_text = ""
-            if pdf_file:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-                    tmp_pdf.write(pdf_file.read())
-                    pdf_path = tmp_pdf.name
-                pdf_text = load_pdf(pdf_path)
-
-            # 2️⃣  URL text
-            urls_to_fetch = [u for u in (url_1, url_2) if u]
-            url_texts = load_url_content(urls_to_fetch) if urls_to_fetch else {}
-
-            # 3️⃣  Build brief
-            brief_output = get_combined_response(
-                pdf_text,
-                url_texts,
-                timespro_url=url_1 or "N/A",
-                competitor_url=url_2 or "N/A",
-                model_choice=model_choice,
+        with st.spinner("Generating sales‑enablement brief …"):
+            pdf_text = ""  # PDF feature disabled
+            url_texts = load_url_content([url_1, url_2])
+            st.session_state.comparison_output = get_combined_response(
+                pdf_text, url_texts, timespro_url=url_1, competitor_url=url_2, model_choice=model_choice
             )
-            st.session_state.comparison_output = brief_output
             st.session_state.comparison_injected = False
 
-# ====== DISPLAY COMPARISON (single, no duplicates) ======
+# ====== DISPLAY BRIEF ======
 if st.session_state.comparison_output:
-    st.success("### 📝 Sales‑Enablement Brief (Auto‑generated)")
+    st.success("### 📝 Sales‑Enablement Brief")
     st.write(st.session_state.comparison_output)
 
 # ====== CHATBOT SECTION ======
 st.subheader("💬 Ask a follow‑up question")
-user_prompt = st.text_input("Enter your question")
+user_q = st.text_input("Enter your question")
 
-if user_prompt:
+if user_q:
     if not retriever:
-        st.warning("Knowledge base is not available. Please select a program to load its data.")
+        st.warning("Vectorstore unavailable. Select a TimesPro program first.")
     else:
         with st.spinner("Answering …"):
-            pdf_text = ""
-            if pdf_file:
-                with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp_pdf:
-                    tmp_pdf.write(pdf_file.read())
-                    pdf_path = tmp_pdf.name
-                pdf_text = load_pdf(pdf_path)
-
-            url_contexts = load_url_content([url_1, url_2]) or {}
-            timespro_context = url_contexts.get(url_1, "")
-            competitor_context = url_contexts.get(url_2, "")
-            comparison_context = st.session_state.comparison_output or ""
+            tp_ctx = load_url_content([url_1]).get(url_1, "")
+            comp_ctx = load_url_content([url_2]).get(url_2, "")
+            comparison_ctx = st.session_state.comparison_output
 
             system_prompt = f"""
-You are a **strategic program analyst** helping the sales team pitch a TimesPro program to learners.
-Use the context below for all answers.  
-• If a **full sales‑enablement brief** is requested, follow **exactly** the structure under *Sales‑enablement brief format* (otherwise ignore the structure and simply answer the question).  
-• Be concise, confident, and benefit‑driven; no vague adjectives; cite numbers or facts where possible.  
-• If unsure, say you don’t know.  
-• Never mention delivery platforms such as Emeritus, upGrad or Coursera.
+You are a strategic program analyst helping the sales team pitch a TimesPro program to learners.  
+Based on the following documents, create a sales-enablement brief using the exact structure below.
 
-**Sales‑enablement brief format (only when the user asks for a brief)**
-1. **Opening Summary Paragraph** (2–3 lines) – highlight 1‑2 strongest differentiators.
-2. **What Makes TimesPro’s Program Better** – 3–4 bold bullet points.  
-3. **Who This Program Is Built For** – comparative table.  
-4. **2 Taglines** – aspiration & curriculum.  
-5. **Price Justification & ROI** (if TimesPro pricier).
+TimesPro's program: {url_1}
+Competition's program: {url_2}
 
---- EXISTING COUNSELOR INSTRUCTIONS ---
-Answer using **only** the context provided. Remain neutral and factual.
+Task:
+Create a sales-enablement brief comparing the TimesPro program with the competitor’s program.
 
---- TIMESPRO DATA ---
-{timespro_context}
+Output Format (follow strictly):
 
---- COMPETITOR DATA ---
-{competitor_context}
+Opening Summary Paragraph (2–3 lines only):
+Add a crisp, value-led summary at the top of the brief. Highlight the strongest 1–2 differentiators such as CXO-readiness, curriculum strength, or ROI.
 
---- PDF DATA ---
-{pdf_text}
+What Makes TimesPro’s Program Better:
+Provide 3–4 bold, confident bullet points. Each bullet must include  
+**Bold header** – a specific career-relevant benefit  
+Supporting explanation – how it helps learners grow or lead better and how it compares to the competitor.
 
---- SALES‑ENABLEMENT BRIEF ---
-{comparison_context}
+Who This Program Is Built For (Compare with Competitor – in table):
+✓ For professionals who want to…  
+✓ For those seeking…  
+✓ For aspirants targeting…  
+*(Add 2–3 curriculum-strength comparisons.)*  
+Table columns: TimesPro Program | Competitor Program
+
+2 Taglines for Learner Interaction:
+• One sentence connecting with learner aspiration.  
+• One sentence highlighting a curriculum-level advantage.
+
+Price Justification & ROI (include only if TimesPro is more expensive):
+• 2–3 strong, specific reasons justifying the higher price.  
+• Compare to the competitor’s offering to show value.  
+• Finish with a confident one-liner positioning price as a career-growth investment.
+
+Tone:
+No fluff. Be concise, confident, and benefit-driven. No vague adjectives. Focus on strategic, real-world outcomes.  
+If unsure, do not mention it.
+
+Note:
+Do NOT compare delivery platforms when the competitor’s program is from Emeritus, upGrad or Coursera.
+
+--- TIMESPRO DOCUMENT ---
+{tp_ctx}
+
+--- COMPETITOR DOCUMENT ---
+{comp_ctx}
+
+--- EXISTING BRIEF (if any) ---
+{comparison_ctx}
 """
 
-            custom_llm = ChatOpenAI(
-                model_name=model_choice,
-                openai_api_key=openai_key,
-                temperature=0,
-            )
-
+            llm = ChatOpenAI(model_name=model_choice, openai_api_key=openai_key, temperature=0)
             qa_chain = ConversationalRetrievalChain.from_llm(
-                llm=custom_llm,
-                retriever=retriever,
-                memory=st.session_state.memory,
-                return_source_documents=True,
+                llm=llm, retriever=retriever, memory=st.session_state.memory, return_source_documents=True
             )
 
-            # Inject system context once
             if not st.session_state.comparison_injected:
-                st.session_state.memory.chat_memory.add_user_message("SYSTEM CONTEXT")
+                st.session_state.memory.chat_memory.add_user_message("SYSTEM PROMPT")
                 st.session_state.memory.chat_memory.add_ai_message(system_prompt)
                 st.session_state.comparison_injected = True
 
-            result = qa_chain.invoke({"question": user_prompt})
-            st.write(f"💬 **Answer:** {result['answer']}")
+            answer = qa_chain.invoke({"question": user_q})
+            st.write(f"💬 **Answer:** {answer['answer']}")
