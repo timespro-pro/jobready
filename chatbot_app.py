@@ -139,47 +139,49 @@ if user_q:
             comparison_ctx = st.session_state.comparison_output
 
             system_prompt = f"""
-You are a strategic program analyst helping the sales team pitch a TimesPro program to learners.  
-Based on the following documents, create a sales-enablement brief using the exact structure below.
+You are a strategic program analyst helping the sales team pitch a TimesPro program to learners.
+Based on the following documents, create a sales‑enablement brief using the exact structure below.
 
 TimesPro's program: {url_1}
 Competition's program: {url_2}
 
 Task:
-Create a sales-enablement brief comparing the TimesPro program with the competitor’s program.
+Create a sales‑enablement brief comparing the TimesPro program with the competitor’s program.
 
 Output Format (follow strictly):
 
 Opening Summary Paragraph (2–3 lines only):
-Add a crisp, value-led summary at the top of the brief. Highlight the strongest 1–2 differentiators such as CXO-readiness, curriculum strength, or ROI.
+Add a crisp, value-led summary at the top of the brief. This should highlight the strongest 1–2 differentiators—such as CXO-readiness, curriculum strength, or ROI—that best position the TimesPro program.
 
 What Makes TimesPro’s Program Better:
-Provide 3–4 bold, confident bullet points. Each bullet must include  
-**Bold header** – a specific career-relevant benefit  
-Supporting explanation – how it helps learners grow or lead better and how it compares to the competitor.
+Provide 3‑4 bold, confident bullet points. Each bullet must have  
+**Bold header** – a specific, career‑relevant benefit  
+Supporting explanation – how it helps learners grow or lead better, and how it compares to the competitor’s program.
 
 Who This Program Is Built For (Compare with Competitor – in table):
+List 2‑3 audience points, plus 2‑3 curriculum‑strength comparisons.
 ✓ For professionals who want to…  
 ✓ For those seeking…  
 ✓ For aspirants targeting…  
-*(Add 2–3 curriculum-strength comparisons.)*  
-Table columns: TimesPro Program | Competitor Program
+(Table columns: TimesPro Program | Competitor Program)
+
 
 2 Taglines for Learner Interaction:
-• One sentence connecting with learner aspiration.  
-• One sentence highlighting a curriculum-level advantage.
+• Sharp, sales-friendly sentence a counselor can say on a call that connects with their aspiration. 
+• One sentence that highlights a curriculum advantage.
 
-Price Justification & ROI (include only if TimesPro is more expensive):
-• 2–3 strong, specific reasons justifying the higher price.  
-• Compare to the competitor’s offering to show value.  
-• Finish with a confident one-liner positioning price as a career-growth investment.
+Price Justification & ROI (Include only if TimesPro is more expensive) 
+- Provide 2–3 strong, specific reasons why the higher price is justified (not generic). 
+- Compare to the competitor’s offering to show value-for-money.  
+- End with a confident one-liner that explains the value or positions the price as an investment in career growth. 
 
-Tone:
-No fluff. Be concise, confident, and benefit-driven. No vague adjectives. Focus on strategic, real-world outcomes.  
-If unsure, do not mention it.
+Tone guidelines:
+No fluff. Be concise, confident and benefit‑driven. Avoid vague adjectives. Focus on strategic, real‑world outcomes.  
+If unsure about something, do **not** mention it.
 
 Note:
-Do NOT compare delivery platforms when the competitor’s program is from Emeritus, upGrad or Coursera.
+Do **not** compare the platforms involvement when the competitor's program is from Emeritus, upGrad or Coursera.
+
 
 --- TIMESPRO DOCUMENT ---
 {tp_ctx}
