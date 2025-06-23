@@ -2,6 +2,12 @@ from langchain.chains import LLMChain
 from langchain.prompts import PromptTemplate
 from langchain_community.chat_models import ChatOpenAI
 import streamlit as st
+import re
+
+
+def _pretty_title(slug: str) -> str:
+    """iim-calcutta-senior-management-programme → IIM Calcutta Senior Management Programme"""
+    return re.sub(r"-", " ", slug).title()
 
 
 def get_combined_response(
@@ -9,82 +15,71 @@ def get_combined_response(
     url_texts: dict,
     timespro_url: str,
     competitor_url: str,
-    model_choice: str = "gpt-3.5-turbo",
-    followup_question: str | None = None,
+    model_choice: str = "gpt-4o",
 ) -> str:
-    """
-    Build a single, richly‑formatted prompt from PDF + URL extracts
-    and return the LLM’s answer.
-    """
 
-    # ----------  assemble the document corpus  ----------
+    # 1️⃣  Build docs string (no truncation)
     docs = ""
     if pdf_text.strip():
         docs += "\n\n--- PDF Content ---\n" + pdf_text
+    for i, (u, tx) in enumerate(url_texts.items(), 1):
+        docs += f"\n\n--- URL {i} ({u}) Content ---\n{tx}"
 
-    for i, (url, text) in enumerate(url_texts.items(), start=1):
-        if text.strip():
-            docs += f"\n\n--- URL {i} ({url}) Content ---\n{text}"
+    # 2️⃣  Make pretty names for the title line
+    tp_name = _pretty_title(timespro_url.split("/")[-1])
+    comp_name = _pretty_title(competitor_url.split("/")[-1])
 
-    # ----------  NEW sales‑enablement prompt  ----------
+    # 3️⃣  Strict prompt
     base_prompt = f"""
-You are a strategic program analyst helping the sales team pitch a TimesPro program to learners.
-Based on the following documents, create a sales‑enablement brief using the exact structure below.
+You are a strategic program analyst helping the sales team pitch a TimesPro program.
+Using only the information in **Documents** below, generate the *ENTIRE* answer in **this exact Markdown skeleton**:
 
-TimesPro's program: {timespro_url}
-Competition's program: {competitor_url}
+Sales-Enablement Brief: {tp_name} (TimesPro) vs {comp_name} (Competitor)
 
-Task:
-Create a sales‑enablement brief comparing the TimesPro program with the competitor’s program.
+### Opening Summary Paragraph
+<2–3 lines. Focus on strongest differentiators.>
 
-Output Format (follow strictly):
+### What Makes TimesPro’s Program Better
+- **<Bold header (benefit)>** – Supporting explanation comparing to competitor  
+- **<Bold header>** – …
 
-Opening Summary Paragraph (2–3 lines only):
-Add a crisp, value‑led summary at the top of the brief. Highlight the strongest 1–2 differentiators.
+### Who This Program Is Built For
+TimesPro Program | Competitor Program
+:-- | :--
+✓ For professionals who want to … | ✓ For professionals who want to …
+✓ For those seeking … | ✓ For those seeking …
+✓ For aspirants targeting … | ✓ For aspirants targeting …
+Curriculum Strength | Curriculum Limitation
+✓ <TimesPro strength 1> | ✗ <Competitor limitation 1>
+✓ <TimesPro strength 2> | ✗ <Competitor limitation 2>
+✓ <TimesPro strength 3> | ✗ <Competitor limitation 3>
 
-What Makes TimesPro’s Program Better:
-Provide 3‑4 bold, confident bullet points. Each bullet must have  
-**Bold header** – a specific, career‑relevant benefit  
-Supporting explanation – how it helps learners grow or lead better, and how it compares to the competitor’s program.
+### 2 Taglines for Learner Interaction
+**Aspirational (Phone call):** "<single sentence>"  
+**Curriculum-led (Chat/email):** "<single sentence>"
 
-Who This Program Is Built For (Compare with Competitor – in table):
-List 2‑3 audience points, plus 2‑3 curriculum‑strength comparisons.  
-(Table columns: TimesPro Program | Competitor Program)
+### Price Justification & ROI *(Only include this section if TimesPro is more expensive)*
+- <Reason 1>  
+- <Reason 2>  
+- <Reason 3>  
+**Bottom line:** <one-liner that positions price as career-growth investment>
 
-2 Taglines for Learner Interaction:
-• One sentence that connects with learner aspirations.  
-• One sentence that highlights a curriculum advantage.
-
-Price Justification & ROI (only if TimesPro is more expensive):
-• 2‑3 specific reasons the higher fee is justified – no generic claims.  
-• Compare to competitor to show value for money.  
-• Finish with a confident line positioning the price as a career‑growth investment.
-
-Tone guidelines:
-No fluff. Be concise, confident and benefit‑driven. Avoid vague adjectives. Focus on strategic, real‑world outcomes.  
-If unsure about something, do **not** mention it.
-
-Note:
-Do **not** discuss the delivery platform when the competitor’s program is run via Emeritus, upGrad or Coursera.
+Tone rules:  
+- No fluff. Concise, confident, benefit-driven.  
+- No vague adjectives.  
+- If unsure about any detail, OMIT it.  
+- NEVER mention delivery platforms (Emeritus, upGrad, Coursera).
 
 Documents:
 {docs}
 """
 
-    # ----------  optional follow‑up  ----------
-    if followup_question:
-        base_prompt += (
-            f"\n\nUser Follow‑Up Question:\n{followup_question}\nPlease answer this based on the comparison."
-        )
-
     prompt = PromptTemplate.from_template(base_prompt)
 
-    # ----------  run the chain  ----------
-    openai_key = st.secrets["OPENAI_API_KEY"]
     llm = ChatOpenAI(
         model_name=model_choice,
-        temperature=0.3,
-        openai_api_key=openai_key,
+        temperature=0,
+        openai_api_key=st.secrets["OPENAI_API_KEY"],
     )
     chain = LLMChain(llm=llm, prompt=prompt)
     return chain.run({})
