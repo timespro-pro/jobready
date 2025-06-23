@@ -59,10 +59,14 @@ sel_display = st.selectbox("Select TimesPro Program", display_options, index=0)
 url_1 = None if sel_display == "-- Select a program --" else timespro_urls[display_options.index(sel_display)]
 url_2 = st.text_input("Input Competitor Program URL")
 
+# ====== SANITIZE URL ======
+def sanitize_url(url: str) -> str:
+    return url.strip("/").split("/")[-1].replace("-", "_")
+
 # ====== LOAD VECTORSTORE ======
 retriever = None
 if url_1:
-    folder = f"timespro_com_executive_education_{slug(url_1)}"
+    folder = f"timespro_com_executive_education_{sanitize_url(url_1)}"
     with st.spinner("Loading TimesPro vectorstore …"):
         try:
             vect_path = f"{gcp_config['prefix']}/{folder}"
