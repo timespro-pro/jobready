@@ -138,83 +138,47 @@ if user_q:
             comp_ctx = load_url_content([url_2]).get(url_2, "")
             comparison_ctx = st.session_state.comparison_output
 
+            # Lightweight open-ended prompt
             system_prompt = f"""
-You are a strategic program analyst helping the sales team pitch a TimesPro program to learners.
+You are a smart, sales-savvy AI assistant helping learners and internal sales teams understand and compare educational programs.
 
-Using only the information provided in the below documents, create a sales‑enablement brief comparing the TimesPro program with the competitor’s program.
+You're informed by three sources:
+1. Vectorstore-based TimesPro documents (for factual answers).
+2. Web content from TimesPro and competitor URLs (for additional insights).
+3. A previously generated sales brief (optional).
 
-TimesPro’s program: {url_1}
-Competitor’s program: {url_2}
+Use all relevant info to provide insightful, strategic, and helpful answers. Intelligently fill in with general knowledge even when the details aren't available try to tell something related to it from the document, rather than saying no infromation available. Keep the tone clear, concise, and helpful.
 
-Task:
-Create the entire sales-enablement brief using the exact structure and Markdown format below:
+Avoid mentioning platform names like Coursera, Emeritus, etc.
 
-Sales-Enablement Brief:  (TimesPro) vs (Competitor)
+--- TIMESPRO VECTORSTORE ---
+(Used internally in chain)
 
-Opening Summary Paragraph
-<2–3 lines only. Add a crisp, value-led summary at the top of the brief. Focus on the strongest 1–2 differentiators—such as CXO-readiness, curriculum strength, or ROI—that best position the TimesPro program.>
-
-What Makes TimesPro’s Program Better
-<Bold header (specific benefit)> – Supporting explanation comparing to competitor, focused on how it helps learners grow or lead better
-
-<Bold header> – …
-
-<Bold header> – …
-
-<Bold header> – …
-
-Who This Program Is Built For
-Compare target audience and curriculum in the table format below.
-
-TimesPro Program	Competitor Program
-✓ For professionals who want to …	✓ For professionals who want to …
-✓ For those seeking …	✓ For those seeking …
-✓ For aspirants targeting …	✓ For aspirants targeting …
-Curriculum Strength	Curriculum Limitation
-✓ <TimesPro strength 1>	✗ <Competitor limitation 1>
-✓ <TimesPro strength 2>	✗ <Competitor limitation 2>
-✓ <TimesPro strength 3>	✗ <Competitor limitation 3>
-
-2 Taglines for Learner Interaction
-Aspirational (Phone call): "<Single sharp sentence that connects with the learner’s aspiration>"
-Curriculum-led (Chat/email): "<One sentence that highlights a curriculum advantage>"
-
-Price Justification & ROI (Include this section only if TimesPro is more expensive)
-<Reason 1: 3 Strong Specific value-based reasons why the higher price is justified (not generic)>
-
-<Reason 2> : Compare to the competitor’s offering to show value-for-money>
-
-<Reason 3>
-Bottom line: <One-liner that positions the higher price as a career-growth investment>
-
-Tone Rules:
-No fluff. Be concise, confident, and benefit‑driven.
-
-Avoid vague adjectives. Focus on strategic, real‑world outcomes.
-
-If unsure about a detail, do NOT mention it.
-
-NEVER mention delivery platforms (like Emeritus, upGrad, or Coursera), even if the competitor uses them.
-
---- TIMESPRO DOCUMENT ---
+--- TIMESPRO URL CONTENT ---
 {tp_ctx}
 
---- COMPETITOR DOCUMENT ---
+--- COMPETITOR URL CONTENT ---
 {comp_ctx}
 
---- EXISTING BRIEF (if any) ---
+--- SALES BRIEF (if any) ---
 {comparison_ctx}
 """
 
-            llm = ChatOpenAI(model_name=model_choice, openai_api_key=openai_key, temperature=0)
+            llm = ChatOpenAI(model_name=model_choice, openai_api_key=openai_key, temperature=0.4)
+
             qa_chain = ConversationalRetrievalChain.from_llm(
-                llm=llm, retriever=retriever, memory=st.session_state.memory, return_source_documents=True
+                llm=llm,
+                retriever=retriever,
+                memory=st.session_state.memory,
+                return_source_documents=True
             )
 
+            # Inject the system prompt only once
             if not st.session_state.comparison_injected:
-                st.session_state.memory.chat_memory.add_user_message("SYSTEM PROMPT")
+                st.session_state.memory.chat_memory.add_user_message("SYSTEM CONTEXT")
                 st.session_state.memory.chat_memory.add_ai_message(system_prompt)
                 st.session_state.comparison_injected = True
 
+            # Call the chain
             answer = qa_chain.invoke({"question": user_q})
             st.write(f"💬 **Answer:** {answer['answer']}")
