@@ -4,35 +4,13 @@ from langchain_community.chat_models import ChatOpenAI
 import streamlit as st
 
 def get_combined_response(
-    pdf_text: str,
-    url_texts: dict,
-    timespro_url: str,
-    competitor_url: str,
-    model_choice: str = "gpt-3.5-turbo",
-    followup_question: str | None = None,
+    pdf_text: str,
+    url_texts: dict,
+    timespro_url: str,
+    competitor_url: str,
+    model_choice: str = "gpt-4o"
 ) -> str:
-    """
-    Build a single, richly‑formatted prompt from PDF + URL extracts
-    and return the LLM’s answer.
-    """
-
-
-
-    # ----------  assemble the document corpus  ----------
-    docs = ""
-    if pdf_text.strip():
-        docs += "\n\n--- PDF Content ---\n" + pdf_text
-
-
-
-    for i, (url, text) in enumerate(url_texts.items(), start=1):
-        if text.strip():
-            docs += f"\n\n--- URL {i} ({url}) Content ---\n{text}"
-
-
-
-    # ----------  NEW sales‑enablement prompt  ----------
-    base_prompt = f"""
+    prompt_template = """
 You are a strategic program analyst helping the sales team pitch a TimesPro program to learners.
 
 Using only the information provided in the below documents, create a sales‑enablement brief comparing the TimesPro program with the competitor’s program.
@@ -83,37 +61,33 @@ Bottom line: <One-liner that positions the higher price as a career-growth inves
 
 Tone Rules:
 No fluff. Be concise, confident, and benefit‑driven.
-
 Avoid vague adjectives. Focus on strategic, real‑world outcomes.
-
 If unsure about a detail, do NOT mention it.
-
 NEVER mention delivery platforms (like Emeritus, upGrad, or Coursera), even if the competitor uses them.
 
-Documents:
-{docs}
+--- TIMESPRO DOCUMENT ---
+{tp_text}
+
+--- COMPETITOR DOCUMENT ---
+{comp_text}
 """
 
+    tp_text = url_texts.get(timespro_url, "")
+    comp_text = url_texts.get(competitor_url, "")
 
+    full_prompt = PromptTemplate(
+        input_variables=["timespro_url", "competitor_url", "tp_text", "comp_text"],
+        template=prompt_template
+    )
 
-    # ----------  optional follow‑up  ----------
-    if followup_question:
-        base_prompt += (
-            f"\n\nUser Follow‑Up Question:\n{followup_question}\nPlease answer this based on the comparison."
-        )
+    chain = LLMChain(
+        llm=ChatOpenAI(model_name=model_choice, openai_api_key=st.secrets["OPENAI_API_KEY"], temperature=0),
+        prompt=full_prompt,
+    )
 
-
-
-    prompt = PromptTemplate.from_template(base_prompt)
-
-
-
-    # ----------  run the chain  ----------
-    openai_key = st.secrets["OPENAI_API_KEY"]
-    llm = ChatOpenAI(
-        model_name=model_choice,
-        temperature=0.3,
-        openai_api_key=openai_key,
-    )
-    chain = LLMChain(llm=llm, prompt=prompt)
-    return chain.run({})
+    return chain.run({
+        "timespro_url": timespro_url,
+        "competitor_url": competitor_url,
+        "tp_text": tp_text,
+        "comp_text": comp_text
+    })
