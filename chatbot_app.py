@@ -180,9 +180,9 @@ Aspirational (Phone call): "<Single sharp sentence that connects with the learne
 Curriculum-led (Chat/email): "<One sentence that highlights a curriculum advantage>"
 
 Price Justification & ROI (Include this section only if TimesPro is more expensive)
-<Reason 1: Specific value-based justification>
+<Reason 1: 3 Strong Specific value-based reasons why the higher price is justified (not generic)>
 
-<Reason 2>
+<Reason 2> : Compare to the competitor’s offering to show value-for-money>
 
 <Reason 3>
 Bottom line: <One-liner that positions the higher price as a career-growth investment>
