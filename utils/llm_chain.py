@@ -34,48 +34,61 @@ def get_combined_response(
     # ----------  NEW sales‑enablement prompt  ----------
     base_prompt = f"""
 You are a strategic program analyst helping the sales team pitch a TimesPro program to learners.
-Based on the following documents, create a sales‑enablement brief using the exact structure below.
 
-TimesPro's program: {timespro_url}
-Competition's program: {competitor_url}
+Using only the information provided in the below documents, create a sales‑enablement brief comparing the TimesPro program with the competitor’s program.
+
+TimesPro’s program: {timespro_url}
+Competitor’s program: {competitor_url}
 
 Task:
-Create a sales‑enablement brief comparing the TimesPro program with the competitor’s program.
+Create the entire sales-enablement brief using the exact structure and Markdown format below:
 
-Output Format (follow strictly):
+Sales-Enablement Brief:  (TimesPro) vs (Competitor)
 
-Opening Summary Paragraph (2–3 lines only):
-Add a crisp, value-led summary at the top of the brief. This should highlight the strongest 1–2 differentiators—such as CXO-readiness, curriculum strength, or ROI—that best position the TimesPro program.
+Opening Summary Paragraph
+<2–3 lines only. Add a crisp, value-led summary at the top of the brief. Focus on the strongest 1–2 differentiators—such as CXO-readiness, curriculum strength, or ROI—that best position the TimesPro program.>
 
-What Makes TimesPro’s Program Better:
-Provide 3‑4 bold, confident bullet points. Each bullet must have  
-**Bold header** – a specific, career‑relevant benefit  
-Supporting explanation – how it helps learners grow or lead better, and how it compares to the competitor’s program.
+What Makes TimesPro’s Program Better
+<Bold header (specific benefit)> – Supporting explanation comparing to competitor, focused on how it helps learners grow or lead better
 
-Who This Program Is Built For (Compare with Competitor – in table):
-List 2‑3 audience points, plus 2‑3 curriculum‑strength comparisons.
-✓ For professionals who want to…  
-✓ For those seeking…  
-✓ For aspirants targeting…  
-(Table columns: TimesPro Program | Competitor Program)
+<Bold header> – …
 
+<Bold header> – …
 
-2 Taglines for Learner Interaction:
-• Sharp, sales-friendly sentence a counselor can say on a call that connects with their aspiration. 
-• One sentence that highlights a curriculum advantage.
+<Bold header> – …
 
-Price Justification & ROI (Include only if TimesPro is more expensive) 
-- Provide 2–3 strong, specific reasons why the higher price is justified (not generic). 
-- Compare to the competitor’s offering to show value-for-money.  
-- End with a confident one-liner that explains the value or positions the price as an investment in career growth. 
+Who This Program Is Built For
+Compare target audience and curriculum in the table format below.
 
-Tone guidelines:
-No fluff. Be concise, confident and benefit‑driven. Avoid vague adjectives. Focus on strategic, real‑world outcomes.  
-If unsure about something, do **not** mention it.
+TimesPro Program	Competitor Program
+✓ For professionals who want to …	✓ For professionals who want to …
+✓ For those seeking …	✓ For those seeking …
+✓ For aspirants targeting …	✓ For aspirants targeting …
+Curriculum Strength	Curriculum Limitation
+✓ <TimesPro strength 1>	✗ <Competitor limitation 1>
+✓ <TimesPro strength 2>	✗ <Competitor limitation 2>
+✓ <TimesPro strength 3>	✗ <Competitor limitation 3>
 
-Note:
-Do **not** compare the platforms involvement when the competitor's program is from Emeritus, upGrad or Coursera.
+2 Taglines for Learner Interaction
+Aspirational (Phone call): "<Single sharp sentence that connects with the learner’s aspiration>"
+Curriculum-led (Chat/email): "<One sentence that highlights a curriculum advantage>"
 
+Price Justification & ROI (Include this section only if TimesPro is more expensive)
+<Reason 1: Specific value-based justification>
+
+<Reason 2>
+
+<Reason 3>
+Bottom line: <One-liner that positions the higher price as a career-growth investment>
+
+Tone Rules:
+No fluff. Be concise, confident, and benefit‑driven.
+
+Avoid vague adjectives. Focus on strategic, real‑world outcomes.
+
+If unsure about a detail, do NOT mention it.
+
+NEVER mention delivery platforms (like Emeritus, upGrad, or Coursera), even if the competitor uses them.
 
 Documents:
 {docs}
