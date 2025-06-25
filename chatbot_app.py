@@ -6,7 +6,8 @@ from utils.loaders import load_url_content
 from utils.llm_chain import get_combined_response
 from load_vectorstore_from_gcp import load_vectorstore_from_gcp
 import tempfile
-from logging import Logger
+##from logging import Logger
+from custom_logger import Logger
 
 import streamlit as st
 import uuid
@@ -66,12 +67,10 @@ gcp_config = {
 
 # After fetching GCP config
 logger = Logger(
-    bucket_name=gcp_config["bucket_name"],
-    credentials=gcp_config["credentials"],
+    gcp_bucket=gcp_config["bucket_name"],
+    gcp_creds=gcp_config["credentials"],
     base_path="logs"
 )
-
-
 
 # ====== PAGE CONFIG ======
 st.set_page_config(page_title="AI Sales Assistant", layout="centered")
