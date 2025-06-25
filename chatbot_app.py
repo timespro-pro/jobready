@@ -6,6 +6,15 @@ from utils.loaders import load_url_content
 from utils.llm_chain import get_combined_response
 from load_vectorstore_from_gcp import load_vectorstore_from_gcp
 import tempfile
+from logging import Logger
+
+# After fetching GCP config
+logger = Logger(
+    gcp_bucket=gcp_config["bucket_name"],
+    gcp_creds=gcp_config["credentials"],
+    base_path="logs"
+)
+
 
 # ─────────────────────────────────────────────
 # Helper: preview docs inside the TimesPro vectorstore
@@ -118,6 +127,8 @@ if cmp_clicked:
             st.session_state.comparison_output = get_combined_response(
                 pdf_text, url_texts, timespro_url=url_1, competitor_url=url_2, model_choice=model_choice
             )
+            logger.log_metadata(url_1, url_2)
+            logger.log_comparison_output(st.session_state.comparison_output)
             st.session_state.comparison_injected = False
 
 # ====== DISPLAY BRIEF ======
@@ -182,3 +193,13 @@ Avoid mentioning platform names like Coursera, Emeritus, etc.
             # Call the chain
             answer = qa_chain.invoke({"question": user_q})
             st.write(f"💬 **Answer:** {answer['answer']}")
+
+            if "qa_pairs" not in st.session_state:
+                st.session_state.qa_pairs = []
+
+st.session_state.qa_pairs.append((user_q, answer['answer']))
+
+if st.session_state.get("qa_pairs") and st.session_state.get("comparison_output"):
+    logger.log_chatbot_qa(st.session_state.qa_pairs)
+    gcs_log_path = logger.write_to_gcs()
+    st.info(f"📝 Log saved to GCS: `{gcs_log_path}`")
