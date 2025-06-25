@@ -40,6 +40,20 @@ st.markdown(
     </div>
     """, unsafe_allow_html=True
 )
+
+
+# ─────────────────────────────────────────────
+# Helper: preview docs inside the TimesPro vectorstore
+# ─────────────────────────────────────────────
+def _preview_vectorstore(retriever, n_docs=5, char_limit=5000):
+    try:
+        docs = list(retriever.vectorstore.docstore._dict.values())[:n_docs]
+        joined = "\n\n--- DOC SPLIT ---\n\n".join(d.page_content for d in docs)
+        return joined[:char_limit]
+    except Exception:
+        return "⚠️ Could not preview vectorstore content."
+
+
 # ====== SECRETS & GCP CREDENTIALS ======
 openai_key = st.secrets["OPENAI_API_KEY"]
 gcp_credentials_dict = dict(st.secrets["GCP_SERVICE_ACCOUNT"])
@@ -56,18 +70,6 @@ logger = Logger(
     gcp_creds=gcp_config["credentials"],
     base_path="logs"
 )
-
-
-# ─────────────────────────────────────────────
-# Helper: preview docs inside the TimesPro vectorstore
-# ─────────────────────────────────────────────
-def _preview_vectorstore(retriever, n_docs=5, char_limit=5000):
-    try:
-        docs = list(retriever.vectorstore.docstore._dict.values())[:n_docs]
-        joined = "\n\n--- DOC SPLIT ---\n\n".join(d.page_content for d in docs)
-        return joined[:char_limit]
-    except Exception:
-        return "⚠️ Could not preview vectorstore content."
 
 
 
