@@ -66,8 +66,8 @@ gcp_config = {
 
 # After fetching GCP config
 logger = Logger(
-    gcp_bucket=gcp_config["bucket_name"],
-    gcp_creds=gcp_config["credentials"],
+    bucket_name=gcp_config["bucket_name"],
+    credentials=gcp_config["credentials"],
     base_path="logs"
 )
 
