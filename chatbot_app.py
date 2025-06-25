@@ -8,6 +8,41 @@ from load_vectorstore_from_gcp import load_vectorstore_from_gcp
 import tempfile
 from logging import Logger
 
+import streamlit as st
+import uuid
+import time
+
+# Real-time user tracking
+if 'active_users' not in st.session_state:
+    st.session_state.active_users = {}
+
+if 'user_id' not in st.session_state:
+    st.session_state.user_id = str(uuid.uuid4())
+
+def update_active_users():
+    now = time.time()
+    ttl = 60
+    active_users = {
+        uid: ts for uid, ts in st.session_state.active_users.items()
+        if now - ts < ttl
+    }
+    active_users[st.session_state.user_id] = now
+    st.session_state.active_users = active_users
+    return len(active_users)
+
+active_user_count = update_active_users()
+
+# Show at top-right
+st.markdown(
+    f"""
+    <div style="position:fixed; top:10px; right:20px; background:#f0f0f0; padding:6px 12px; border-radius:8px; font-size:14px;">
+        👥 Active Users: {active_user_count}
+    </div>
+    """, unsafe_allow_html=True
+)
+
+
+
 # After fetching GCP config
 logger = Logger(
     gcp_bucket=gcp_config["bucket_name"],
