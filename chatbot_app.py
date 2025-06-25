@@ -42,11 +42,10 @@ st.markdown(
 )
 
 
-
 # After fetching GCP config
 logger = Logger(
-    gcp_bucket=gcp_config["bucket_name"],
-    gcp_creds=gcp_config["credentials"],
+    gcp_bucket=gcp_config["test_bucket_brian"],
+    gcp_creds= dict(st.secrets["GCP_SERVICE_ACCOUNT"]),
     base_path="logs"
 )
 
