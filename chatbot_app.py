@@ -40,12 +40,20 @@ st.markdown(
     </div>
     """, unsafe_allow_html=True
 )
+# ====== SECRETS & GCP CREDENTIALS ======
+openai_key = st.secrets["OPENAI_API_KEY"]
+gcp_credentials_dict = dict(st.secrets["GCP_SERVICE_ACCOUNT"])
 
+gcp_config = {
+    "bucket_name": "test_bucket_brian",
+    "prefix": "vectorstores",
+    "credentials": gcp_credentials_dict,
+}
 
 # After fetching GCP config
 logger = Logger(
-    gcp_bucket=gcp_config["test_bucket_brian"],
-    gcp_creds= dict(st.secrets["GCP_SERVICE_ACCOUNT"]),
+    gcp_bucket=gcp_config["bucket_name"],
+    gcp_creds=gcp_config["credentials"],
     base_path="logs"
 )
 
@@ -61,15 +69,7 @@ def _preview_vectorstore(retriever, n_docs=5, char_limit=5000):
     except Exception:
         return "⚠️ Could not preview vectorstore content."
 
-# ====== SECRETS & GCP CREDENTIALS ======
-openai_key = st.secrets["OPENAI_API_KEY"]
-gcp_credentials_dict = dict(st.secrets["GCP_SERVICE_ACCOUNT"])
 
-gcp_config = {
-    "bucket_name": "test_bucket_brian",
-    "prefix": "vectorstores",
-    "credentials": gcp_credentials_dict,
-}
 
 # ====== PAGE CONFIG ======
 st.set_page_config(page_title="AI Sales Assistant", layout="centered")
