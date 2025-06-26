@@ -42,7 +42,7 @@ active_user_count = update_active_users()
 
 st.markdown(
     f"""
-    <div style="position:fixed; top:10px; right:20px; background:#f0f0f0; padding:6px 12px; border-radius:8px; font-size:14px; z-index:9999;">
+    <div style="position:fixed; top:10px; left:20px; background:#f0f0f0; padding:6px 12px; border-radius:8px; font-size:14px; z-index:9999;">
         👥 Active Users: {active_user_count}
     </div>
     """, unsafe_allow_html=True
