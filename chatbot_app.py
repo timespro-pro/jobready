@@ -235,7 +235,7 @@ Avoid mentioning platform names like Coursera, Emeritus, etc.
                 "qa_pairs": st.session_state.qa_pairs,
             }
 
-            logger.log_chatbot_qa(metadata)
+            logger.log_chatbot_qa(metadata["qa_pairs"])
             gcs_log_path = logger.write_to_gcs()
             st.session_state.log_saved = True
             st.info(f"📝 Log saved to GCS: `{gcs_log_path}`")
