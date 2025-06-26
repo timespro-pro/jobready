@@ -233,11 +233,12 @@ Avoid mentioning platform names like Coursera, Emeritus, etc.
                 "comparison_output": st.session_state.comparison_output,
                 "active_user_count": active_user_count,
                 "qa_pairs": st.session_state.qa_pairs,
-}
+            }
 
-logger.log_chatbot_qa(metadata)
-gcs_log_path = logger.write_to_gcs()
-st.info(f"📝 Log saved to GCS: `{gcs_log_path}`")
+            logger.log_chatbot_qa(metadata)
+            gcs_log_path = logger.write_to_gcs()
+            st.session_state.log_saved = True
+            st.info(f"📝 Log saved to GCS: `{gcs_log_path}`")
 
 if st.session_state.get("qa_pairs") and st.session_state.get("comparison_output"):
     logger.log_chatbot_qa(st.session_state.qa_pairs)
