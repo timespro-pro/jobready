@@ -29,9 +29,20 @@ class Logger:
         self.log_lines.append(comparison_output.strip() or "[Empty]")
         self.log_lines.append("")
 
-    def log_chatbot_qa(self, qa_pairs: List[Tuple[str, str]]):
+    def log_chatbot_qa(self, metadata: dict):
+        self.log_lines.append("=== SESSION METADATA ===")
+        for key, value in metadata.items():
+            if key != "qa_pairs":
+                self.log_lines.append(f"{key.replace('_', ' ').title()}: {value}")
+        self.log_lines.append("")
+    
         self.log_lines.append("=== CHATBOT Q&A ===")
-        for i, (question, answer) in enumerate(qa_pairs, 1):
+        qa_pairs = metadata.get("qa_pairs", [])
+        for i, qa in enumerate(qa_pairs, 1):
+            if isinstance(qa, (list, tuple)) and len(qa) == 2:
+                question, answer = qa
+            else:
+                question, answer = "Invalid format", str(qa)
             self.log_lines.append(f"Q{i}: {question}")
             self.log_lines.append(f"A{i}: {answer}")
             self.log_lines.append("")
