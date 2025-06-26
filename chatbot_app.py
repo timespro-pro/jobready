@@ -8,6 +8,11 @@ from load_vectorstore_from_gcp import load_vectorstore_from_gcp
 from custom_logger import Logger
 import uuid
 import time
+from datetime import datetime
+import platform
+
+if "start_time" not in st.session_state:
+    st.session_state.start_time = time.time()
 
 # === Real-time user tracking ===
 if 'active_users' not in st.session_state:
@@ -37,7 +42,7 @@ active_user_count = update_active_users()
 
 st.markdown(
     f"""
-    <div style="position:fixed; top:10px; right:20px; background:#f0f0f0; padding:6px 12px; border-radius:8px; font-size:14px;">
+    <div style="position:fixed; top:10px; right:20px; background:#f0f0f0; padding:6px 12px; border-radius:8px; font-size:14px; z-index:9999;">
         👥 Active Users: {active_user_count}
     </div>
     """, unsafe_allow_html=True
@@ -211,6 +216,28 @@ Avoid mentioning platform names like Coursera, Emeritus, etc.
             answer = qa_chain.invoke({"question": user_q})
             st.write(f"💬 **Answer:** {answer['answer']}")
             st.session_state.qa_pairs.append((user_q, answer['answer']))
+            
+            # Gather metadata
+            session_id = st.session_state.user_id
+            session_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            runtime = time.time() - st.session_state.get("start_time", time.time())
+            device_info = platform.platform()
+            
+            metadata = {
+                "session_id": session_id,
+                "timestamp": session_time,
+                "device": device_info,
+                "session_runtime_seconds": round(runtime),
+                "selected_program": url_1,
+                "competitor_program": url_2,
+                "comparison_output": st.session_state.comparison_output,
+                "active_user_count": active_user_count,
+                "qa_pairs": st.session_state.qa_pairs,
+}
+
+logger.log_chatbot_qa(metadata)
+gcs_log_path = logger.write_to_gcs()
+st.info(f"📝 Log saved to GCS: `{gcs_log_path}`")
 
 if st.session_state.get("qa_pairs") and st.session_state.get("comparison_output"):
     logger.log_chatbot_qa(st.session_state.qa_pairs)
