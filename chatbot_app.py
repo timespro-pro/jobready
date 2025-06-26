@@ -20,6 +20,14 @@ if 'active_users' not in st.session_state:
 if 'user_id' not in st.session_state:
     st.session_state.user_id = str(uuid.uuid4())
 
+# Initialize session state variables
+if "qa_pairs" not in st.session_state:
+    st.session_state.qa_pairs = []
+
+if "comparison" not in st.session_state:
+    st.session_state.comparison = None
+
+
 def update_active_users():
     now = time.time()
     ttl = 60
