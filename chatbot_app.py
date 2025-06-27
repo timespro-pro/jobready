@@ -10,6 +10,8 @@ import uuid
 import time
 from datetime import datetime
 import platform
+from langchain_community.chat_models import ChatOpenAI
+
 
 if "start_time" not in st.session_state:
     st.session_state.start_time = time.time()
@@ -235,6 +237,7 @@ Avoid mentioning platform names like Coursera, Emeritus, etc.
                 "qa_pairs": st.session_state.qa_pairs,
             }
 
+            logger.log_chatbot_qa(metadata)
             logger.log_chatbot_qa(st.session_state.qa_pairs)
             gcs_log_path = logger.write_to_gcs()
             st.session_state.log_saved = True
