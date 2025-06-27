@@ -239,8 +239,3 @@ Avoid mentioning platform names like Coursera, Emeritus, etc.
             gcs_log_path = logger.write_to_gcs()
             st.session_state.log_saved = True
             st.info(f"📝 Log saved to GCS: `{gcs_log_path}`")
-
-#if st.session_state.get("qa_pairs") and st.session_state.get("comparison_output"):
-#   logger.log_chatbot_qa(st.session_state.qa_pairs)
-#    gcs_log_path = logger.write_to_gcs()
-#    st.info(f"📝 Log saved to GCS: `{gcs_log_path}`")
