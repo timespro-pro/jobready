@@ -1,5 +1,5 @@
 import streamlit as st
-from langchain.chat_models import ChatOpenAI
+from langchain_community.chat_models import ChatOpenAI  # ✅ use updated import
 from langchain.chains import ConversationalRetrievalChain
 from langchain.memory import ConversationBufferMemory
 from utils.loaders import load_url_content
@@ -10,25 +10,20 @@ import uuid
 import time
 from datetime import datetime
 import platform
-from langchain_community.chat_models import ChatOpenAI
 
-
+# === Session setup ===
 if "start_time" not in st.session_state:
     st.session_state.start_time = time.time()
-
-# === Real-time user tracking ===
+if "qa_pairs" not in st.session_state:
+    st.session_state.qa_pairs = []
+if "comparison" not in st.session_state:
+    st.session_state.comparison = None
 if 'active_users' not in st.session_state:
     st.session_state.active_users = {}
-
 if 'user_id' not in st.session_state:
     st.session_state.user_id = str(uuid.uuid4())
 
-if "qa_pairs" not in st.session_state:
-    st.session_state.qa_pairs = []
-
-if "comparison" not in st.session_state:
-    st.session_state.comparison = None
-
+# === Track users ===
 def update_active_users():
     now = time.time()
     ttl = 60
@@ -50,7 +45,7 @@ st.markdown(
     """, unsafe_allow_html=True
 )
 
-# === Helper: preview vectorstore ===
+# === Preview helper ===
 def _preview_vectorstore(retriever, n_docs=5, char_limit=5000):
     try:
         docs = list(retriever.vectorstore.docstore._dict.values())[:n_docs]
@@ -75,11 +70,10 @@ logger = Logger(
     base_path="logs"
 )
 
-# === Page config ===
+# === UI Setup ===
 st.set_page_config(page_title="AI Sales Assistant", layout="centered")
 st.title("📚 AI Sales Assistant")
 
-# === Inputs ===
 timespro_urls = [
     "-- Select a program --",
     "https://timespro.com/executive-education/iim-calcutta-senior-management-programme",
@@ -118,17 +112,16 @@ if url_1:
         except Exception as e:
             st.error(f"Vectorstore load failed: {e}")
 
-# === Session state memory ===
+# === Memory Setup ===
 if "memory" not in st.session_state:
     st.session_state.memory = ConversationBufferMemory(
         memory_key="chat_history", input_key="question", output_key="answer",
         return_messages=True, k=7
     )
-
 st.session_state.setdefault("comparison_output", "")
 st.session_state.setdefault("comparison_injected", False)
 
-# === Action Buttons ===
+# === Action buttons ===
 col_cmp, col_prn, col_clr = st.columns([2, 2, 1])
 with col_cmp:
     cmp_clicked = st.button("Compare (Generate Brief)", disabled=sel_display == "-- Select a program --")
@@ -138,7 +131,7 @@ with col_clr:
     if st.button("Clear Cache 🪩"):
         st.session_state.clear(); st.rerun()
 
-# === Print extracted data ===
+# === Print Extracted Info ===
 if prn_clicked:
     st.subheader("📄 TimesPro Data Preview")
     st.write(_preview_vectorstore(retriever) if retriever else "No vectorstore loaded.")
@@ -161,12 +154,11 @@ if cmp_clicked:
             logger.log_comparison_output(st.session_state.comparison_output)
             st.session_state.comparison_injected = False
 
-# === Display brief ===
 if st.session_state.comparison_output:
     st.success("### 📝 Sales‑Enablement Brief")
     st.write(st.session_state.comparison_output)
 
-# === Chatbot section ===
+# === Chatbot interaction ===
 st.subheader("💬 Ask a follow‑up question")
 user_q = st.text_input("Enter your question")
 
@@ -218,18 +210,13 @@ Avoid mentioning platform names like Coursera, Emeritus, etc.
             answer = qa_chain.invoke({"question": user_q})
             st.write(f"💬 **Answer:** {answer['answer']}")
             st.session_state.qa_pairs.append((user_q, answer['answer']))
-            
-            # Gather metadata
-            session_id = st.session_state.user_id
-            session_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            runtime = time.time() - st.session_state.get("start_time", time.time())
-            device_info = platform.platform()
-            
+
+            # === Metadata logging ===
             metadata = {
-                "session_id": session_id,
-                "timestamp": session_time,
-                "device": device_info,
-                "session_runtime_seconds": round(runtime),
+                "session_id": st.session_state.user_id,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "device": platform.platform(),
+                "session_runtime_seconds": round(time.time() - st.session_state.get("start_time", time.time())),
                 "selected_program": url_1,
                 "competitor_program": url_2,
                 "comparison_output": st.session_state.comparison_output,
@@ -238,7 +225,6 @@ Avoid mentioning platform names like Coursera, Emeritus, etc.
             }
 
             logger.log_chatbot_qa(metadata)
-            logger.log_chatbot_qa(st.session_state.qa_pairs)
             gcs_log_path = logger.write_to_gcs()
             st.session_state.log_saved = True
             st.info(f"📝 Log saved to GCS: `{gcs_log_path}`")
