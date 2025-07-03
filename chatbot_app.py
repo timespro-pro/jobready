@@ -71,8 +71,8 @@ logger = Logger(
 )
 
 # === UI Setup ===
-st.set_page_config(page_title="AI Sales Assistant", layout="centered")
-st.title("📚 AI Sales Assistant")
+st.set_page_config(page_title="AI-Agent for Program Comparison", layout="centered")
+st.title("📚 AI-Agent for Program Comparison")
 
 timespro_urls = [
     "-- Select a program --",
